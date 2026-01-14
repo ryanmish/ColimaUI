@@ -42,7 +42,7 @@ struct SidebarView: View {
                             onDelete: {
                                 Task { await viewModel.deleteProfile(vm.name) }
                             },
-                            canDelete: viewModel.colima.vms.count > 1 && !vm.isRunning
+                            canDelete: !vm.isRunning
                         )
                     }
                 }
@@ -142,6 +142,7 @@ struct VMSidebarItem: View {
     @State private var isHovered = false
     @State private var showDetails = false
     @State private var hoverTask: Task<Void, Never>?
+    @State private var showDeleteConfirmation = false
 
     var body: some View {
         Button(action: onSelect) {
@@ -218,11 +219,19 @@ struct VMSidebarItem: View {
                 Divider()
 
                 Button(role: .destructive) {
-                    onDelete()
+                    showDeleteConfirmation = true
                 } label: {
                     Label("Delete Profile", systemImage: "trash")
                 }
             }
+        }
+        .alert("Delete Profile", isPresented: $showDeleteConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Delete", role: .destructive) {
+                onDelete()
+            }
+        } message: {
+            Text("Are you sure you want to delete \"\(vm.name)\"? This cannot be undone.")
         }
     }
 }

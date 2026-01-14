@@ -4,6 +4,7 @@ import SwiftUI
 struct DashboardView: View {
     @Bindable var viewModel: AppViewModel
     @State private var isRefreshing = false
+    @State private var showDeleteConfirmation = false
 
     var body: some View {
         ScrollView {
@@ -189,6 +190,11 @@ struct DashboardView: View {
                         Task { await viewModel.startVM() }
                     }
                     .buttonStyle(GlassButtonStyle())
+
+                    Button("Delete") {
+                        showDeleteConfirmation = true
+                    }
+                    .buttonStyle(GlassButtonStyle())
                 }
 
                 if viewModel.colima.isLoading {
@@ -198,6 +204,14 @@ struct DashboardView: View {
             }
         }
         .cardStyle()
+        .alert("Delete Profile", isPresented: $showDeleteConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Delete", role: .destructive) {
+                Task { await viewModel.deleteProfile(viewModel.colima.selectedProfile) }
+            }
+        } message: {
+            Text("Are you sure you want to delete \"\(viewModel.colima.selectedProfile)\"? This cannot be undone.")
+        }
     }
 }
 
