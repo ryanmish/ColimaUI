@@ -1,0 +1,505 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		012FD451E4F6196633B6B077 /* ToastView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC1DEF143C74878241FE9E5C /* ToastView.swift */; };
+		0C942B0C2360609CBD5761A7 /* ColimaUIApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCEF5F2B313F6030BA351ED5 /* ColimaUIApp.swift */; };
+		0FA7209CC574975714F3938E /* VolumeListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F1AEF308C0AC6863E5E9C98 /* VolumeListView.swift */; };
+		26B42BF572193A28B1B8CBD7 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56BEAEA1635CC46244AA5935 /* Theme.swift */; };
+		27A9D6359DA1EA9E85B2B75E /* ContainerLogsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9577B6E97AD696B6CCFA9B8 /* ContainerLogsView.swift */; };
+		27BE838A1926EFA42AAE551C /* CleanupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFD2937515617112CD899828 /* CleanupView.swift */; };
+		345750367CAF4481D631697C /* AppViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B0A9143A615998095AB9B5C /* AppViewModel.swift */; };
+		3E248BAB5F7B2E0648109CEF /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F3F802E0AEC8319E34196BC /* OnboardingView.swift */; };
+		4054008686278D1A56E1535E /* ContainerStats.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38913BA08CED24A8C61076C6 /* ContainerStats.swift */; };
+		434F94E29D713A60BBED9F27 /* Container.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC2C78FD9A5AB2A75D7E5276 /* Container.swift */; };
+		550A574A4F2D28837B3D99BA /* CreateProfileSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3911EFA73C0E9546896E0E8 /* CreateProfileSheet.swift */; };
+		5FCB2E1212EAF6BD2AAF0BEC /* ColimaService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76FC7F0ABFFA7A77AFA0DD94 /* ColimaService.swift */; };
+		65CE2F81054D2356427FD527 /* ShellExecutor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B110B5E9F4EEED166CD9B50C /* ShellExecutor.swift */; };
+		83F4222F1A89E7625B1C7162 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 685F05EB87E7A9A352A61264 /* SettingsView.swift */; };
+		848D7F4E205646D8C406C3C2 /* DockerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46FDCA95D401A35E8A40DD0A /* DockerService.swift */; };
+		86E5C99A8CBDB002B789554E /* ImageListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42C138370D4A0952A799201A /* ImageListView.swift */; };
+		9060E60621CD7034D05A660C /* DockerVolume.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FAB7FA6EE809CA4BE3E863F /* DockerVolume.swift */; };
+		A5B2766E9C1F06C2AC6903A7 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 33AF1C5869327F9B46EFA08F /* Assets.xcassets */; };
+		B2E9DF2980121CD77FBD19A6 /* DockerImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10837C7E1BF2640AA8F9E10 /* DockerImage.swift */; };
+		B31AABDAF8FE22E82B774B93 /* ContainerRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBC22FA2447EA579A9527196 /* ContainerRowView.swift */; };
+		B7AB1628F4A120C15B817EAB /* ColimaVM.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DB705272ED423601EA45940 /* ColimaVM.swift */; };
+		B9BFDCB455D33D45EBD33FE6 /* ContainerDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A15975836EAEEF5F2108F1B /* ContainerDetailView.swift */; };
+		C4080E0A5C3019D863BB746E /* ContainerListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 924E6BAED90F882F88162F67 /* ContainerListView.swift */; };
+		DADD5C4C53E4765CA06776DD /* ContainerDetail.swift in Sources */ = {isa = PBXBuildFile; fileRef = 961608DDC7B1B0C0D4388BB6 /* ContainerDetail.swift */; };
+		E170AC6C61FA1C85088AF65A /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C0CC0361AAA0DC9A4B69A04 /* DashboardView.swift */; };
+		E306FCAD5F6A06B6FAB13CC8 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06564384B6FDE1C935068375 /* SidebarView.swift */; };
+		E9B909D8B88A151B12C114CA /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37035A6EBB5B0183B57DABB5 /* MainView.swift */; };
+		EC35916DD3DBB2021969D5D2 /* DependencyChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC5131E24F21B9ADFA7AA07E /* DependencyChecker.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		06564384B6FDE1C935068375 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
+		0F3F802E0AEC8319E34196BC /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		1B0A9143A615998095AB9B5C /* AppViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppViewModel.swift; sourceTree = "<group>"; };
+		1DB705272ED423601EA45940 /* ColimaVM.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColimaVM.swift; sourceTree = "<group>"; };
+		2C0CC0361AAA0DC9A4B69A04 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
+		33AF1C5869327F9B46EFA08F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		37035A6EBB5B0183B57DABB5 /* MainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainView.swift; sourceTree = "<group>"; };
+		38913BA08CED24A8C61076C6 /* ContainerStats.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContainerStats.swift; sourceTree = "<group>"; };
+		3A15975836EAEEF5F2108F1B /* ContainerDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContainerDetailView.swift; sourceTree = "<group>"; };
+		4042678BC39E086DBE55642F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		42C138370D4A0952A799201A /* ImageListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageListView.swift; sourceTree = "<group>"; };
+		46FDCA95D401A35E8A40DD0A /* DockerService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockerService.swift; sourceTree = "<group>"; };
+		52D88447441225F2E1D819D0 /* ColimaUI.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ColimaUI.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		56BEAEA1635CC46244AA5935 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		5FAB7FA6EE809CA4BE3E863F /* DockerVolume.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockerVolume.swift; sourceTree = "<group>"; };
+		685F05EB87E7A9A352A61264 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		76FC7F0ABFFA7A77AFA0DD94 /* ColimaService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColimaService.swift; sourceTree = "<group>"; };
+		924E6BAED90F882F88162F67 /* ContainerListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContainerListView.swift; sourceTree = "<group>"; };
+		961608DDC7B1B0C0D4388BB6 /* ContainerDetail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContainerDetail.swift; sourceTree = "<group>"; };
+		9F1AEF308C0AC6863E5E9C98 /* VolumeListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VolumeListView.swift; sourceTree = "<group>"; };
+		AC2C78FD9A5AB2A75D7E5276 /* Container.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Container.swift; sourceTree = "<group>"; };
+		B110B5E9F4EEED166CD9B50C /* ShellExecutor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShellExecutor.swift; sourceTree = "<group>"; };
+		C3911EFA73C0E9546896E0E8 /* CreateProfileSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateProfileSheet.swift; sourceTree = "<group>"; };
+		C9577B6E97AD696B6CCFA9B8 /* ContainerLogsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContainerLogsView.swift; sourceTree = "<group>"; };
+		C9D0D31DEF711C0DC0A4787B /* ColimaUI.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ColimaUI.entitlements; sourceTree = "<group>"; };
+		CC5131E24F21B9ADFA7AA07E /* DependencyChecker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DependencyChecker.swift; sourceTree = "<group>"; };
+		CCEF5F2B313F6030BA351ED5 /* ColimaUIApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColimaUIApp.swift; sourceTree = "<group>"; };
+		CFD2937515617112CD899828 /* CleanupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CleanupView.swift; sourceTree = "<group>"; };
+		EC1DEF143C74878241FE9E5C /* ToastView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastView.swift; sourceTree = "<group>"; };
+		F10837C7E1BF2640AA8F9E10 /* DockerImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockerImage.swift; sourceTree = "<group>"; };
+		FBC22FA2447EA579A9527196 /* ContainerRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContainerRowView.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		117E8EFE72AABFC9F8A04DEC = {
+			isa = PBXGroup;
+			children = (
+				DF42F11C68455B81C2BDBE13 /* ColimaUI */,
+				7D4F50CFFDC801E5817AAD86 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		16F4192BAA50FC4A50B4C517 /* Dashboard */ = {
+			isa = PBXGroup;
+			children = (
+				2C0CC0361AAA0DC9A4B69A04 /* DashboardView.swift */,
+			);
+			path = Dashboard;
+			sourceTree = "<group>";
+		};
+		23F43FDE9782E50FAD2836D2 /* Volumes */ = {
+			isa = PBXGroup;
+			children = (
+				9F1AEF308C0AC6863E5E9C98 /* VolumeListView.swift */,
+			);
+			path = Volumes;
+			sourceTree = "<group>";
+		};
+		2F5F4BE9BD81218E683F47E6 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				C3911EFA73C0E9546896E0E8 /* CreateProfileSheet.swift */,
+				37035A6EBB5B0183B57DABB5 /* MainView.swift */,
+				0F3F802E0AEC8319E34196BC /* OnboardingView.swift */,
+				685F05EB87E7A9A352A61264 /* SettingsView.swift */,
+				56BEAEA1635CC46244AA5935 /* Theme.swift */,
+				3CAE6B9591F66B5696F2F49E /* Components */,
+				E14013F61628C766FED1D51F /* Containers */,
+				16F4192BAA50FC4A50B4C517 /* Dashboard */,
+				EBB56BF48724BC3C6B7EF470 /* Images */,
+				6CD90D9DE21985984F236776 /* Sidebar */,
+				23F43FDE9782E50FAD2836D2 /* Volumes */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		3CAE6B9591F66B5696F2F49E /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				EC1DEF143C74878241FE9E5C /* ToastView.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		51F55B87A465F159250110CD /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				1B0A9143A615998095AB9B5C /* AppViewModel.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		6CD90D9DE21985984F236776 /* Sidebar */ = {
+			isa = PBXGroup;
+			children = (
+				06564384B6FDE1C935068375 /* SidebarView.swift */,
+			);
+			path = Sidebar;
+			sourceTree = "<group>";
+		};
+		7D4F50CFFDC801E5817AAD86 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				52D88447441225F2E1D819D0 /* ColimaUI.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		89E52FDF67CD8549EE7FA211 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				76FC7F0ABFFA7A77AFA0DD94 /* ColimaService.swift */,
+				CC5131E24F21B9ADFA7AA07E /* DependencyChecker.swift */,
+				46FDCA95D401A35E8A40DD0A /* DockerService.swift */,
+				B110B5E9F4EEED166CD9B50C /* ShellExecutor.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		CA2B278FCBFC15304C885C6A /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				33AF1C5869327F9B46EFA08F /* Assets.xcassets */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		DF42F11C68455B81C2BDBE13 /* ColimaUI */ = {
+			isa = PBXGroup;
+			children = (
+				C9D0D31DEF711C0DC0A4787B /* ColimaUI.entitlements */,
+				CCEF5F2B313F6030BA351ED5 /* ColimaUIApp.swift */,
+				4042678BC39E086DBE55642F /* Info.plist */,
+				FABB52F759859507DF9A722B /* Models */,
+				CA2B278FCBFC15304C885C6A /* Resources */,
+				89E52FDF67CD8549EE7FA211 /* Services */,
+				51F55B87A465F159250110CD /* ViewModels */,
+				2F5F4BE9BD81218E683F47E6 /* Views */,
+			);
+			path = ColimaUI;
+			sourceTree = "<group>";
+		};
+		E14013F61628C766FED1D51F /* Containers */ = {
+			isa = PBXGroup;
+			children = (
+				3A15975836EAEEF5F2108F1B /* ContainerDetailView.swift */,
+				924E6BAED90F882F88162F67 /* ContainerListView.swift */,
+				C9577B6E97AD696B6CCFA9B8 /* ContainerLogsView.swift */,
+				FBC22FA2447EA579A9527196 /* ContainerRowView.swift */,
+			);
+			path = Containers;
+			sourceTree = "<group>";
+		};
+		EBB56BF48724BC3C6B7EF470 /* Images */ = {
+			isa = PBXGroup;
+			children = (
+				CFD2937515617112CD899828 /* CleanupView.swift */,
+				42C138370D4A0952A799201A /* ImageListView.swift */,
+			);
+			path = Images;
+			sourceTree = "<group>";
+		};
+		FABB52F759859507DF9A722B /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				1DB705272ED423601EA45940 /* ColimaVM.swift */,
+				AC2C78FD9A5AB2A75D7E5276 /* Container.swift */,
+				961608DDC7B1B0C0D4388BB6 /* ContainerDetail.swift */,
+				38913BA08CED24A8C61076C6 /* ContainerStats.swift */,
+				F10837C7E1BF2640AA8F9E10 /* DockerImage.swift */,
+				5FAB7FA6EE809CA4BE3E863F /* DockerVolume.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		81F1E256B40A8F268DB1A6F2 /* ColimaUI */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 96F0B9DC37456DFB7E3681E4 /* Build configuration list for PBXNativeTarget "ColimaUI" */;
+			buildPhases = (
+				334FAC96599EF4FF5E5736DC /* Sources */,
+				E8D6243A6F3AF960E7537190 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = ColimaUI;
+			packageProductDependencies = (
+			);
+			productName = ColimaUI;
+			productReference = 52D88447441225F2E1D819D0 /* ColimaUI.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		C839145CD2C2178A7B31B908 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					81F1E256B40A8F268DB1A6F2 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = D1A5BD23CF700631C4A09FED /* Build configuration list for PBXProject "ColimaUI" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 117E8EFE72AABFC9F8A04DEC;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				81F1E256B40A8F268DB1A6F2 /* ColimaUI */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		E8D6243A6F3AF960E7537190 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A5B2766E9C1F06C2AC6903A7 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		334FAC96599EF4FF5E5736DC /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				345750367CAF4481D631697C /* AppViewModel.swift in Sources */,
+				27BE838A1926EFA42AAE551C /* CleanupView.swift in Sources */,
+				5FCB2E1212EAF6BD2AAF0BEC /* ColimaService.swift in Sources */,
+				0C942B0C2360609CBD5761A7 /* ColimaUIApp.swift in Sources */,
+				B7AB1628F4A120C15B817EAB /* ColimaVM.swift in Sources */,
+				434F94E29D713A60BBED9F27 /* Container.swift in Sources */,
+				DADD5C4C53E4765CA06776DD /* ContainerDetail.swift in Sources */,
+				B9BFDCB455D33D45EBD33FE6 /* ContainerDetailView.swift in Sources */,
+				C4080E0A5C3019D863BB746E /* ContainerListView.swift in Sources */,
+				27A9D6359DA1EA9E85B2B75E /* ContainerLogsView.swift in Sources */,
+				B31AABDAF8FE22E82B774B93 /* ContainerRowView.swift in Sources */,
+				4054008686278D1A56E1535E /* ContainerStats.swift in Sources */,
+				550A574A4F2D28837B3D99BA /* CreateProfileSheet.swift in Sources */,
+				E170AC6C61FA1C85088AF65A /* DashboardView.swift in Sources */,
+				EC35916DD3DBB2021969D5D2 /* DependencyChecker.swift in Sources */,
+				B2E9DF2980121CD77FBD19A6 /* DockerImage.swift in Sources */,
+				848D7F4E205646D8C406C3C2 /* DockerService.swift in Sources */,
+				9060E60621CD7034D05A660C /* DockerVolume.swift in Sources */,
+				86E5C99A8CBDB002B789554E /* ImageListView.swift in Sources */,
+				E9B909D8B88A151B12C114CA /* MainView.swift in Sources */,
+				3E248BAB5F7B2E0648109CEF /* OnboardingView.swift in Sources */,
+				83F4222F1A89E7625B1C7162 /* SettingsView.swift in Sources */,
+				65CE2F81054D2356427FD527 /* ShellExecutor.swift in Sources */,
+				E306FCAD5F6A06B6FAB13CC8 /* SidebarView.swift in Sources */,
+				26B42BF572193A28B1B8CBD7 /* Theme.swift in Sources */,
+				012FD451E4F6196633B6B077 /* ToastView.swift in Sources */,
+				0FA7209CC574975714F3938E /* VolumeListView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		315D3875C92CB883FCD57FA2 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = ColimaUI/ColimaUI.entitlements;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = NO;
+				INFOPLIST_FILE = ColimaUI/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.colimaui.app;
+				PRODUCT_NAME = ColimaUI;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		393441CA77AEA3F3819D428E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.9;
+			};
+			name = Debug;
+		};
+		4FCCD787DC050890B6109E4F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = ColimaUI/ColimaUI.entitlements;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = NO;
+				INFOPLIST_FILE = ColimaUI/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.colimaui.app;
+				PRODUCT_NAME = ColimaUI;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		D5F60D6E4169CDA78EA5BDC2 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.9;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		96F0B9DC37456DFB7E3681E4 /* Build configuration list for PBXNativeTarget "ColimaUI" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				315D3875C92CB883FCD57FA2 /* Debug */,
+				4FCCD787DC050890B6109E4F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		D1A5BD23CF700631C4A09FED /* Build configuration list for PBXProject "ColimaUI" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				393441CA77AEA3F3819D428E /* Debug */,
+				D5F60D6E4169CDA78EA5BDC2 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = C839145CD2C2178A7B31B908 /* Project object */;
+}
