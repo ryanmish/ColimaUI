@@ -67,11 +67,16 @@ actor ShellExecutor {
 
     /// Execute a command with macOS administrator privileges.
     /// This triggers the standard system password prompt.
-    func runPrivileged(_ command: String) async throws -> String {
+    func runPrivileged(_ command: String, prompt: String? = nil) async throws -> String {
         let path = shellEnvironment["PATH"] ?? "/usr/bin:/bin:/usr/sbin:/sbin"
         let fullCommand = "export PATH=\(path); \(command)"
         let escaped = Self.escapeForAppleScript(fullCommand)
-        let script = "do shell script \"\(escaped)\" with administrator privileges"
+        var script = "do shell script \"\(escaped)\""
+        if let prompt, !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let escapedPrompt = Self.escapeForAppleScript(prompt)
+            script += " with prompt \"\(escapedPrompt)\""
+        }
+        script += " with administrator privileges"
 
         return try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.main.async {

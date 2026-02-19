@@ -141,7 +141,10 @@ actor LocalDomainService {
             resolverTargets.append("/etc/resolver/colima")
         }
         let resolverCleanup = "rm -f " + resolverTargets.map(Self.shellEscape).joined(separator: " ")
-        _ = try? await shell.runPrivileged(resolverCleanup)
+        _ = try? await shell.runPrivileged(
+            resolverCleanup,
+            prompt: "ColimaUI needs admin access to remove /etc/resolver entries that enable local domain routing."
+        )
 
         return await checkSetup(suffix: normalized)
     }
@@ -381,7 +384,10 @@ actor LocalDomainService {
                 _ = try await shell.run("mkdir -p \(managedDirEscaped)")
                 _ = try await shell.run("printf '%s' \(configBodyEscaped) > \(managedConfEscaped)")
             } catch {
-                _ = try await shell.runPrivileged("mkdir -p \(managedDirEscaped) && printf '%s' \(configBodyEscaped) > \(managedConfEscaped)")
+                _ = try await shell.runPrivileged(
+                    "mkdir -p \(managedDirEscaped) && printf '%s' \(configBodyEscaped) > \(managedConfEscaped)",
+                    prompt: "ColimaUI needs admin access to write local DNS config for wildcard domains."
+                )
             }
         }
 
@@ -821,7 +827,10 @@ actor LocalDomainService {
         printf '%s' \(resolverBodyEscaped) > \(resolverEscaped)
         """
 
-        _ = try await shell.runPrivileged(command)
+        _ = try await shell.runPrivileged(
+            command,
+            prompt: "ColimaUI needs admin access to configure /etc/resolver and local DNS files for container domains."
+        )
     }
 
     private func commandSucceeds(_ command: String) async -> Bool {
