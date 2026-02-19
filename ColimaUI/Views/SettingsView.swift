@@ -1315,18 +1315,26 @@ struct SettingsView: View {
         ToastManager.shared.show(message, type: .success)
     }
 
+    private var isLocalDomainSetupHealthy: Bool {
+        !setupChecks.isEmpty && setupChecks.allSatisfy(\.isPassing)
+    }
+
     private var automaticSetupControls: some View {
         HStack(spacing: 10) {
-            setupActionButton(title: "Run Setup") {
-                runAutomaticSetupAndCheck(for: normalizedDomainSuffix(containerDomainSuffix))
+            if !isLocalDomainSetupHealthy {
+                setupActionButton(title: "Run Setup") {
+                    runAutomaticSetupAndCheck(for: normalizedDomainSuffix(containerDomainSuffix))
+                }
             }
 
             setupActionButton(title: "Check") {
                 runSetupCheckOnly(for: normalizedDomainSuffix(containerDomainSuffix))
             }
 
-            setupActionButton(title: "Unsetup") {
-                runAutomaticUnsetup(for: normalizedDomainSuffix(containerDomainSuffix))
+            if isLocalDomainSetupHealthy {
+                setupActionButton(title: "Unsetup") {
+                    runAutomaticUnsetup(for: normalizedDomainSuffix(containerDomainSuffix))
+                }
             }
 
             if isAutoSetupRunning {
