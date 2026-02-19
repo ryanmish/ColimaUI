@@ -86,6 +86,7 @@ actor LocalDomainService {
         }
 
         await syncProxyRoutes(suffix: normalized, force: true)
+        _ = try? await shell.run("dscacheutil -flushcache >/dev/null 2>&1 || true")
 
         if !issues.isEmpty {
             print("Local domain setup completed with issues: \(issues.joined(separator: " | "))")
@@ -145,6 +146,7 @@ actor LocalDomainService {
             resolverCleanup,
             prompt: "ColimaUI needs permission to remove the local website address settings it previously added."
         )
+        _ = try? await shell.run("dscacheutil -flushcache >/dev/null 2>&1 || true")
 
         return await checkSetup(suffix: normalized)
     }
@@ -662,11 +664,13 @@ actor LocalDomainService {
 
     private func runningContainerIPs() async throws -> [String: String] {
         let command = """
-        ids=$(docker ps -q)
+        ids="$(docker ps -q)"
         if [ -z "$ids" ]; then
           exit 0
         fi
-        docker inspect --format '{{.Id}}|{{range .NetworkSettings.Networks}}{{if .IPAddress}}{{.IPAddress}} {{end}}{{end}}' $ids
+        for id in ${=ids}; do
+          docker inspect --format '{{.Id}}|{{range .NetworkSettings.Networks}}{{if .IPAddress}}{{.IPAddress}} {{end}}{{end}}' "$id"
+        done
         """
         let output = try await shell.run(command)
 
