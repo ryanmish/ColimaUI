@@ -237,7 +237,7 @@ actor LocalDomainService {
 
         domain_index_reachable=0
         if [ "$reverse_proxy_running" -eq 1 ]; then
-          curl -sk --connect-timeout 1 --max-time 1 "https://index.$suffix" >/dev/null 2>&1 && domain_index_reachable=1
+          curl -skf --connect-timeout 1 --max-time 1 "https://index.$suffix" >/dev/null 2>&1 && domain_index_reachable=1
         fi
 
         printf 'has_brew=%s\\n' "$has_brew"
@@ -372,8 +372,18 @@ actor LocalDomainService {
         ].joined(separator: "\n") + "\n"
         let configBodyEscaped = Self.shellEscape(configBody)
 
-        _ = try await shell.run("mkdir -p \(managedDirEscaped)")
-        _ = try await shell.run("printf '%s' \(configBodyEscaped) > \(managedConfEscaped)")
+        let hasManagedConfig = await commandSucceeds(
+            "test -f \(managedConfEscaped) && grep -Fqx 'listen-address=127.0.0.1' \(managedConfEscaped) && grep -Fqx 'bind-interfaces' \(managedConfEscaped) && grep -Fqx 'port \(dnsmasqPort)' \(managedConfEscaped) && grep -Fqx 'address=/.\(suffix)/127.0.0.1' \(managedConfEscaped)"
+        )
+
+        if !hasManagedConfig {
+            do {
+                _ = try await shell.run("mkdir -p \(managedDirEscaped)")
+                _ = try await shell.run("printf '%s' \(configBodyEscaped) > \(managedConfEscaped)")
+            } catch {
+                _ = try await shell.runPrivileged("mkdir -p \(managedDirEscaped) && printf '%s' \(configBodyEscaped) > \(managedConfEscaped)")
+            }
+        }
 
         _ = try? await shell.run("brew services stop dnsmasq >/dev/null 2>&1 || true")
         _ = try? await shell.run("launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/homebrew.mxcl.dnsmasq.plist >/dev/null 2>&1 || true")
@@ -381,11 +391,11 @@ actor LocalDomainService {
         _ = try? await shell.run("brew services cleanup >/dev/null 2>&1 || true")
         _ = try? await shell.run("brew services start dnsmasq >/dev/null 2>&1")
 
-        if !(await isDnsmasqRunning()) {
+        if !(await waitForDnsmasqStart()) {
             _ = try? await shell.run("brew services restart dnsmasq >/dev/null 2>&1")
         }
 
-        if !(await isDnsmasqRunning()) {
+        if !(await waitForDnsmasqStart()) {
             let status = await dnsmasqServiceStatus()
             throw ShellError.commandFailed("dnsmasq service failed to start (\(status))")
         }
@@ -402,6 +412,16 @@ actor LocalDomainService {
             return true
         }
         return (await dnsmasqServiceStatus()) == "started"
+    }
+
+    private func waitForDnsmasqStart(attempts: Int = 12, delayMs: UInt64 = 250) async -> Bool {
+        for _ in 0..<attempts {
+            if await isDnsmasqRunning() {
+                return true
+            }
+            try? await Task.sleep(nanoseconds: delayMs * 1_000_000)
+        }
+        return false
     }
 
     private func setupResolver(for suffix: String) async throws {
@@ -497,7 +517,7 @@ actor LocalDomainService {
     func syncProxyRoutes(suffix: String, force: Bool = false) async {
         let normalized = normalizeSuffix(suffix)
         guard !normalized.isEmpty else { return }
-        guard await commandSucceeds("docker ps --format '{{.Names}}' | grep -Fxq 'colimaui-proxy'") else { return }
+        guard await commandSucceeds("docker info >/dev/null 2>&1") else { return }
 
         let now = Date()
         if !force, now.timeIntervalSince(lastRouteSyncAt) < 2 {
