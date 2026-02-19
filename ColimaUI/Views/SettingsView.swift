@@ -143,7 +143,7 @@ actor LocalDomainService {
         let resolverCleanup = "rm -f " + resolverTargets.map(Self.shellEscape).joined(separator: " ")
         _ = try? await shell.runPrivileged(
             resolverCleanup,
-            prompt: "ColimaUI needs admin access to remove /etc/resolver entries that enable local domain routing."
+            prompt: "ColimaUI needs permission to remove the local website address settings it previously added."
         )
 
         return await checkSetup(suffix: normalized)
@@ -386,7 +386,7 @@ actor LocalDomainService {
             } catch {
                 _ = try await shell.runPrivileged(
                     "mkdir -p \(managedDirEscaped) && printf '%s' \(configBodyEscaped) > \(managedConfEscaped)",
-                    prompt: "ColimaUI needs admin access to write local DNS config for wildcard domains."
+                    prompt: "ColimaUI needs permission to set up local website addresses for your containers."
                 )
             }
         }
@@ -829,7 +829,7 @@ actor LocalDomainService {
 
         _ = try await shell.runPrivileged(
             command,
-            prompt: "ColimaUI needs admin access to configure /etc/resolver and local DNS files for container domains."
+            prompt: "ColimaUI needs permission to turn on local website addresses, so container apps open by name instead of port numbers."
         )
     }
 
