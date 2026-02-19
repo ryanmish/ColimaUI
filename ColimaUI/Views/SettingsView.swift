@@ -563,7 +563,6 @@ actor LocalDomainService {
             let name: String
             let rule: String
             let service: String
-            let middlewares: [String]
         }
 
         var routes: [Route] = []
@@ -572,21 +571,13 @@ actor LocalDomainService {
         var routeRules = Set<String>()
         var routeIndex = 0
 
-        func addRoute(rule: String, service: String, middlewares: [String] = []) {
+        func addRoute(rule: String, service: String) {
             guard routeRules.insert("\(rule)|\(service)").inserted else { return }
             routeIndex += 1
-            routes.append(Route(name: "r\(routeIndex)", rule: rule, service: service, middlewares: middlewares))
+            routes.append(Route(name: "r\(routeIndex)", rule: rule, service: service))
         }
 
-        addRoute(
-            rule: "Host(`index.\(suffix)`) && Path(`/`)",
-            service: "api@internal",
-            middlewares: ["index-redirect"]
-        )
-        addRoute(
-            rule: "Host(`index.\(suffix)`) && (PathPrefix(`/dashboard`) || PathPrefix(`/api`))",
-            service: "api@internal"
-        )
+        addRoute(rule: "Host(`index.\(suffix)`)", service: "api@internal")
 
         for container in containers {
             let labels = parseLabels(container.Labels)
@@ -628,20 +619,9 @@ actor LocalDomainService {
                 yaml.append("      rule: \"\(route.rule)\"")
                 yaml.append("      entryPoints: [\"web\", \"websecure\"]")
                 yaml.append("      service: \(route.service)")
-                if !route.middlewares.isEmpty {
-                    let middlewares = route.middlewares.map { "\"\($0)\"" }.joined(separator: ", ")
-                    yaml.append("      middlewares: [\(middlewares)]")
-                }
                 yaml.append("      tls: {}")
             }
         }
-
-        yaml.append("  middlewares:")
-        yaml.append("    index-redirect:")
-        yaml.append("      redirectRegex:")
-        yaml.append("        regex: \"^https?://([^/]+)/?$\"")
-        yaml.append("        replacement: \"https://$1/dashboard/\"")
-        yaml.append("        permanent: false")
 
         yaml.append("  services:")
         if serviceURLs.isEmpty {
