@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 
 /// Async wrapper for executing shell commands
 actor ShellExecutor {
@@ -64,6 +65,34 @@ actor ShellExecutor {
         try process.run()
     }
 
+    /// Execute a command with macOS administrator privileges.
+    /// This triggers the standard system password prompt.
+    func runPrivileged(_ command: String) async throws -> String {
+        let path = shellEnvironment["PATH"] ?? "/usr/bin:/bin:/usr/sbin:/sbin"
+        let fullCommand = "export PATH=\(path); \(command)"
+        let escaped = Self.escapeForAppleScript(fullCommand)
+        let script = "do shell script \"\(escaped)\" with administrator privileges"
+
+        return try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.main.async {
+                var errorInfo: NSDictionary?
+                guard let appleScript = NSAppleScript(source: script) else {
+                    continuation.resume(throwing: ShellError.commandFailed("Failed to create privileged script"))
+                    return
+                }
+
+                let result = appleScript.executeAndReturnError(&errorInfo)
+                if let errorInfo {
+                    let message = (errorInfo["NSAppleScriptErrorMessage"] as? String) ?? "Unknown error"
+                    continuation.resume(throwing: ShellError.commandFailed(message))
+                    return
+                }
+
+                continuation.resume(returning: result.stringValue ?? "")
+            }
+        }
+    }
+
     /// Stream output from a long-running command
     func stream(_ command: String, onOutput: @escaping (String) -> Void) async throws -> Process {
         let process = Process()
@@ -85,6 +114,12 @@ actor ShellExecutor {
 
         try process.run()
         return process
+    }
+
+    private static func escapeForAppleScript(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
     }
 }
 

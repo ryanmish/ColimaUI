@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 /// Detailed container information panel
 struct ContainerDetailView: View {
@@ -10,6 +11,10 @@ struct ContainerDetailView: View {
     @State private var isLoading = true
     @State private var selectedTab = 0
     @State private var showLogs = false
+
+    @AppStorage("enableContainerDomains") private var enableContainerDomains: Bool = true
+    @AppStorage("containerDomainSuffix") private var containerDomainSuffix: String = "colima"
+    @AppStorage("preferHTTPSDomains") private var preferHTTPSDomains: Bool = false
 
     var body: some View {
         ZStack {
@@ -183,7 +188,55 @@ struct ContainerDetailView: View {
 
     @ViewBuilder
     private func portsTab(_ detail: ContainerDetail) -> some View {
+        let customDomains = Container.customDomains(from: detail.config.labels)
+        let localDomains = enableContainerDomains
+            ? container.localDomains(domainSuffix: containerDomainSuffix, additionalDomains: customDomains)
+            : []
+
         VStack(alignment: .leading, spacing: 16) {
+            if !localDomains.isEmpty {
+                DetailSection(title: "Local Domains") {
+                    ForEach(localDomains, id: \.self) { domain in
+                        HStack(spacing: 10) {
+                            Text(domain)
+                                .font(.system(size: 13, weight: .medium, design: .monospaced))
+                                .foregroundColor(Theme.textPrimary)
+                                .lineLimit(1)
+
+                            Spacer()
+
+                            if !Container.isWildcardDomain(domain) {
+                                Button {
+                                    openDomain(domain)
+                                } label: {
+                                    Image(systemName: "arrow.up.right.square")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(Theme.textSecondary)
+                                        .padding(6)
+                                        .background(Color.white.opacity(0.06))
+                                        .cornerRadius(4)
+                                }
+                                .buttonStyle(.plain)
+                                .tooltip("Open \(domain)")
+                            }
+
+                            Button {
+                                copyDomain(domain)
+                            } label: {
+                                Image(systemName: "doc.on.doc")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(Theme.textMuted)
+                                    .padding(6)
+                                    .background(Color.white.opacity(0.06))
+                                    .cornerRadius(4)
+                            }
+                            .buttonStyle(.plain)
+                            .tooltip("Copy URL")
+                        }
+                    }
+                }
+            }
+
             if let ports = detail.networkSettings.ports, !ports.isEmpty {
                 let mappedPorts = ports.compactMap { (containerPort, bindings) -> (String, String)? in
                     guard let binding = bindings?.first else { return nil }
@@ -191,43 +244,49 @@ struct ContainerDetailView: View {
                 }
 
                 if mappedPorts.isEmpty {
-                    emptyState(icon: "network", message: "No port mappings configured")
+                    if localDomains.isEmpty {
+                        emptyState(icon: "network", message: "No port mappings configured")
+                    }
                 } else {
-                    ForEach(mappedPorts, id: \.0) { hostPort, containerPort in
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("localhost:\(hostPort)")
-                                    .font(.system(size: 13, weight: .medium, design: .monospaced))
-                                    .foregroundColor(Theme.textPrimary)
+                    DetailSection(title: "Port Mappings") {
+                        ForEach(mappedPorts, id: \.0) { hostPort, containerPort in
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("localhost:\(hostPort)")
+                                        .font(.system(size: 13, weight: .medium, design: .monospaced))
+                                        .foregroundColor(Theme.textPrimary)
 
-                                Text("Container port \(containerPort)")
-                                    .font(.system(size: 11))
-                                    .foregroundColor(Theme.textMuted)
-                            }
-
-                            Spacer()
-
-                            Button {
-                                if let url = URL(string: "http://localhost:\(hostPort)") {
-                                    NSWorkspace.shared.open(url)
+                                    Text("Container port \(containerPort)")
+                                        .font(.system(size: 11))
+                                        .foregroundColor(Theme.textMuted)
                                 }
-                            } label: {
-                                Image(systemName: "arrow.up.right.square")
-                                    .font(.system(size: 12))
-                                    .foregroundColor(Theme.textSecondary)
-                                    .padding(6)
-                                    .background(Color.white.opacity(0.06))
-                                    .cornerRadius(4)
+
+                                Spacer()
+
+                                Button {
+                                    if let url = URL(string: "http://localhost:\(hostPort)") {
+                                        NSWorkspace.shared.open(url)
+                                    }
+                                } label: {
+                                    Image(systemName: "arrow.up.right.square")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(Theme.textSecondary)
+                                        .padding(6)
+                                        .background(Color.white.opacity(0.06))
+                                        .cornerRadius(4)
+                                }
+                                .buttonStyle(.plain)
                             }
-                            .buttonStyle(.plain)
+                            .padding(12)
+                            .background(Color.white.opacity(0.03))
+                            .cornerRadius(8)
                         }
-                        .padding(12)
-                        .background(Color.white.opacity(0.03))
-                        .cornerRadius(8)
                     }
                 }
             } else {
-                emptyState(icon: "network", message: "No port mappings configured")
+                if localDomains.isEmpty {
+                    emptyState(icon: "network", message: "No port mappings configured")
+                }
             }
         }
     }
@@ -363,6 +422,21 @@ struct ContainerDetailView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 40)
+    }
+
+    private func openDomain(_ domain: String) {
+        let scheme = preferHTTPSDomains ? "https" : "http"
+        if let url = URL(string: "\(scheme)://\(domain)") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    private func copyDomain(_ domain: String) {
+        let scheme = preferHTTPSDomains ? "https" : "http"
+        let url = "\(scheme)://\(domain)"
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(url, forType: .string)
+        ToastManager.shared.show("Copied \(url)", type: .success)
     }
 }
 

@@ -13,6 +13,7 @@ A native macOS app for managing Colima VMs and Docker containers.
 - **Image Management**: List and remove Docker images
 - **Volume Management**: List, remove, and prune Docker volumes
 - **Cleanup Tools**: Prune dangling images, build cache, and unused data
+- **Local Domains (Colima)**: Zero-config container/compose domains with automatic DNS, routing, and local TLS
 
 ## Installation
 
@@ -32,6 +33,43 @@ xattr -cr /Applications/ColimaUI.app
 - Docker CLI
 
 If you don't have Colima installed, the app will guide you through the installation process.
+
+## Local Domains
+
+ColimaUI can configure local domains end-to-end from Settings:
+- wildcard DNS via dnsmasq
+- macOS resolver setup
+- automatic reverse proxy startup
+- automatic local TLS certs with `mkcert`
+- index page at `index.<suffix>`
+
+See detailed workflow documentation: [`docs/local-development-workflow.md`](docs/local-development-workflow.md)
+
+Generated domains:
+
+- Compose service: `service.project.<suffix>`
+- Container fallback: `container-name.<suffix>`
+
+Configure in **Settings -> Local Domains**:
+
+- Enable/disable local domain links
+- Set domain suffix (default: `.colima`)
+- Prefer HTTPS for link opening
+- Automatic setup/check runs in-app (DNS, resolver, proxy, TLS, index health)
+- Supports custom domain labels: `dev.colimaui.domains`
+- Supports wildcard custom domains (for example `*.api.mish`)
+- Supports HTTP port override label: `dev.colimaui.http-port=8080`
+
+Example (custom domains + port override):
+
+```yaml
+services:
+  api:
+    image: my-api
+    labels:
+      - dev.colimaui.domains=api.colima,docs.colima
+      - dev.colimaui.http-port=3000
+```
 
 ## Building from Source
 

@@ -30,6 +30,11 @@ struct Container: Codable, Identifiable {
         extractLabel("com.docker.compose.project")
     }
 
+    /// Extract docker-compose service from labels
+    var composeService: String? {
+        extractLabel("com.docker.compose.service")
+    }
+
     /// Extract docker-compose working directory from labels
     var composeWorkingDir: String? {
         extractLabel("com.docker.compose.project.working_dir")
@@ -98,5 +103,147 @@ struct Container: Codable, Identifiable {
         }
 
         return ports.isEmpty ? nil : ports
+    }
+
+    /// Build local domain candidates for this container.
+    /// Compose containers prefer service.project.<suffix>, then container-name.<suffix>.
+    func localDomains(domainSuffix: String, additionalDomains: [String] = []) -> [String] {
+        let suffix = Self.normalizeDomainSuffix(domainSuffix)
+        guard !suffix.isEmpty else { return [] }
+
+        var domains: [String] = []
+
+        if let service = composeService,
+           let project = composeProject,
+           let serviceLabel = Self.normalizeDomainLabel(service),
+           let projectLabel = Self.normalizeDomainLabel(project) {
+            domains.append("\(serviceLabel).\(projectLabel).\(suffix)")
+        }
+
+        if let containerLabel = Self.normalizeDomainLabel(name) {
+            domains.append("\(containerLabel).\(suffix)")
+        }
+
+        let labelDomains = Self.parseDomainCSV(extractLabel("dev.colimaui.domains"))
+        for domain in labelDomains {
+            if let normalized = Self.normalizeFullDomain(domain) {
+                domains.append(normalized)
+            }
+        }
+
+        for domain in additionalDomains {
+            if let normalized = Self.normalizeFullDomain(domain) {
+                domains.append(normalized)
+            }
+        }
+
+        return Self.unique(domains)
+    }
+
+    func primaryLocalDomain(domainSuffix: String, additionalDomains: [String] = []) -> String? {
+        localDomains(domainSuffix: domainSuffix, additionalDomains: additionalDomains)
+            .first(where: { !Self.isWildcardDomain($0) })
+    }
+
+    static func customDomains(from labels: [String: String]?) -> [String] {
+        guard let labels else { return [] }
+        let keys = [
+            "dev.colimaui.domains"
+        ]
+
+        var domains: [String] = []
+        for key in keys {
+            domains.append(contentsOf: parseDomainCSV(labels[key]))
+        }
+
+        return unique(domains.compactMap(normalizeFullDomain))
+    }
+
+    static func isWildcardDomain(_ value: String) -> Bool {
+        value.hasPrefix("*.")
+    }
+
+    // MARK: - Domain Helpers
+
+    private static func parseDomainCSV(_ value: String?) -> [String] {
+        guard let value else { return [] }
+        return value
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
+    private static func normalizeDomainSuffix(_ value: String) -> String {
+        let trimmed = value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .trimmingCharacters(in: CharacterSet(charactersIn: "."))
+
+        return normalizeFullDomain(trimmed) ?? ""
+    }
+
+    private static func normalizeDomainLabel(_ value: String) -> String? {
+        let lowered = value
+            .lowercased()
+            .replacingOccurrences(of: "_", with: "-")
+
+        let sanitized = lowered.map { char -> Character in
+            if char.isLetter || char.isNumber || char == "-" {
+                return char
+            }
+            return "-"
+        }
+
+        let label = String(sanitized)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+
+        return label.isEmpty ? nil : label
+    }
+
+    private static func normalizeFullDomain(_ value: String) -> String? {
+        var raw = value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        if let schemeRange = raw.range(of: "://") {
+            raw = String(raw[schemeRange.upperBound...])
+        }
+
+        if let slashIndex = raw.firstIndex(of: "/") {
+            raw = String(raw[..<slashIndex])
+        }
+
+        raw = raw.trimmingCharacters(in: CharacterSet(charactersIn: "."))
+        if raw.isEmpty {
+            return nil
+        }
+
+        let wildcard = raw.hasPrefix("*.")
+        if raw.contains("*") && !wildcard {
+            return nil
+        }
+
+        if wildcard {
+            raw = String(raw.dropFirst(2))
+            if raw.isEmpty {
+                return nil
+            }
+        }
+
+        let labels = raw.split(separator: ".")
+        guard !labels.isEmpty else { return nil }
+
+        for label in labels {
+            guard normalizeDomainLabel(String(label)) == String(label) else {
+                return nil
+            }
+        }
+
+        return wildcard ? "*.\(raw)" : raw
+    }
+
+    private static func unique(_ values: [String]) -> [String] {
+        var seen = Set<String>()
+        return values.filter { seen.insert($0).inserted }
     }
 }

@@ -41,6 +41,13 @@ class DockerService {
             }
 
             containers = newContainers
+
+            if UserDefaults.standard.bool(forKey: "enableContainerDomains") {
+                let suffix = UserDefaults.standard.string(forKey: "containerDomainSuffix") ?? "colima"
+                Task {
+                    await LocalDomainService.shared.syncProxyRoutes(suffix: suffix)
+                }
+            }
         } catch {
             self.error = error.localizedDescription
         }

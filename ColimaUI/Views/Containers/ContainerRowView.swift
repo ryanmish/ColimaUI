@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 /// Single container row with status and actions
 struct ContainerRowView: View {
@@ -15,7 +16,16 @@ struct ContainerRowView: View {
     var onShell: (() -> Void)? = nil
     var onShowDetails: (() -> Void)? = nil
 
+    @AppStorage("enableContainerDomains") private var enableContainerDomains: Bool = true
+    @AppStorage("containerDomainSuffix") private var containerDomainSuffix: String = "colima"
+    @AppStorage("preferHTTPSDomains") private var preferHTTPSDomains: Bool = false
+
     @State private var isHovered = false
+
+    private var primaryDomain: String? {
+        guard enableContainerDomains else { return nil }
+        return container.primaryLocalDomain(domainSuffix: containerDomainSuffix)
+    }
 
     var body: some View {
         HStack(spacing: 12) {
@@ -42,30 +52,48 @@ struct ContainerRowView: View {
                 }
             }
 
-            // Port badges
-            if !compact, let ports = container.exposedPorts, !ports.isEmpty {
+            if !compact {
                 HStack(spacing: 4) {
-                    ForEach(ports.prefix(3), id: \.self) { port in
+                    if let domain = primaryDomain {
                         Button {
-                            if let url = URL(string: "http://localhost:\(port)") {
-                                NSWorkspace.shared.open(url)
-                            }
+                            openDomain(domain)
                         } label: {
-                            Text(":\(port)")
+                            Text(domain)
                                 .font(.system(size: 10, weight: .medium, design: .monospaced))
-                                .foregroundColor(Theme.accent)
+                                .foregroundColor(Theme.statusRunning)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
-                                .background(Theme.accent.opacity(0.15))
+                                .background(Theme.statusRunning.opacity(0.15))
                                 .cornerRadius(4)
                         }
                         .buttonStyle(.plain)
-                        .tooltip("Open localhost:\(port)")
+                        .tooltip("Open \(domain)")
                     }
-                    if ports.count > 3 {
-                        Text("+\(ports.count - 3)")
-                            .font(.system(size: 10))
-                            .foregroundColor(Theme.textMuted)
+
+                    if let ports = container.exposedPorts, !ports.isEmpty {
+                        ForEach(ports.prefix(3), id: \.self) { port in
+                            Button {
+                                if let url = URL(string: "http://localhost:\(port)") {
+                                    NSWorkspace.shared.open(url)
+                                }
+                            } label: {
+                                Text(":\(port)")
+                                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                                    .foregroundColor(Theme.accent)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Theme.accent.opacity(0.15))
+                                    .cornerRadius(4)
+                            }
+                            .buttonStyle(.plain)
+                            .tooltip("Open localhost:\(port)")
+                        }
+
+                        if ports.count > 3 {
+                            Text("+\(ports.count - 3)")
+                                .font(.system(size: 10))
+                                .foregroundColor(Theme.textMuted)
+                        }
                     }
                 }
             }
@@ -168,6 +196,22 @@ struct ContainerRowView: View {
                 Label("Show Details", systemImage: "info.circle")
             }
 
+            if let domain = primaryDomain {
+                Divider()
+
+                Button {
+                    openDomain(domain)
+                } label: {
+                    Label("Open Domain", systemImage: "network")
+                }
+
+                Button {
+                    copyDomain(domain)
+                } label: {
+                    Label("Copy Domain URL", systemImage: "doc.on.doc")
+                }
+            }
+
             if !container.isRunning {
                 Divider()
 
@@ -178,6 +222,21 @@ struct ContainerRowView: View {
                 }
             }
         }
+    }
+
+    private func openDomain(_ domain: String) {
+        let scheme = preferHTTPSDomains ? "https" : "http"
+        if let url = URL(string: "\(scheme)://\(domain)") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    private func copyDomain(_ domain: String) {
+        let scheme = preferHTTPSDomains ? "https" : "http"
+        let url = "\(scheme)://\(domain)"
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(url, forType: .string)
+        ToastManager.shared.show("Copied \(url)", type: .success)
     }
 }
 
