@@ -17,11 +17,10 @@ struct ColimaUIApp: App {
             MenuBarMenuView()
         } label: {
             Image("ColimaToolbarIcon")
-                .renderingMode(.template)
+                .renderingMode(.original)
                 .resizable()
                 .scaledToFit()
-                .frame(width: 18, height: 18)
-                .padding(.horizontal, 1)
+                .frame(width: 19, height: 19)
         }
     }
 }
