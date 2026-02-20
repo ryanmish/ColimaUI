@@ -80,16 +80,28 @@ struct OnboardingView: View {
                     }
                     .padding()
                 } else if checker.allDependenciesMet {
-                    Button {
-                        onComplete()
-                    } label: {
-                        HStack {
-                            Text("Get Started")
-                            Image(systemName: "arrow.right")
+                    VStack(spacing: 12) {
+                        if !checker.hasColimaUICLI {
+                            Button("Install colimaui CLI") {
+                                Task {
+                                    _ = await checker.installColimaUICLIOnly()
+                                    await checker.checkAll()
+                                }
+                            }
+                            .buttonStyle(PrimaryButtonStyle())
                         }
-                        .frame(maxWidth: 200)
+
+                        Button {
+                            onComplete()
+                        } label: {
+                            HStack {
+                                Text("Get Started")
+                                Image(systemName: "arrow.right")
+                            }
+                            .frame(maxWidth: 200)
+                        }
+                        .buttonStyle(PrimaryButtonStyle())
                     }
-                    .buttonStyle(PrimaryButtonStyle())
                 } else if !checker.hasHomebrew {
                     VStack(spacing: 12) {
                         Text("Homebrew is required to install Colima")

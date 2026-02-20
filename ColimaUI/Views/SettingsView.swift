@@ -47,6 +47,12 @@ actor LocalDomainService {
             throw LocalDomainSetupError.invalidSuffix
         }
 
+        if let result = try await runColimaUICLIAction("setup", suffix: normalized),
+           let parsedChecks = parseCLICheckOutput(result.output),
+           parsedChecks.count >= 10 {
+            return parsedChecks
+        }
+
         var issues: [String] = []
 
         do {
@@ -99,6 +105,10 @@ actor LocalDomainService {
         let normalized = normalizeSuffix(suffix)
         guard !normalized.isEmpty else {
             throw LocalDomainSetupError.invalidSuffix
+        }
+
+        if let _ = try await runColimaUICLIAction("unsetup", suffix: normalized) {
+            return await checkSetup(suffix: normalized)
         }
 
         _ = try? await shell.run("docker rm -f colimaui-proxy >/dev/null 2>&1")
@@ -162,6 +172,12 @@ actor LocalDomainService {
                     detail: "Suffix is empty."
                 )
             ]
+        }
+
+        if let cliResult = try? await runColimaUICLIAction("check", suffix: normalized),
+           let parsedChecks = parseCLICheckOutput(cliResult.output),
+           parsedChecks.count >= 10 {
+            return parsedChecks
         }
 
         let suffixEscaped = Self.shellEscape(normalized)
@@ -525,6 +541,11 @@ actor LocalDomainService {
     func syncProxyRoutes(suffix: String, force: Bool = false) async {
         let normalized = normalizeSuffix(suffix)
         guard !normalized.isEmpty else { return }
+
+        if force, let result = try? await runColimaUICLIAction("sync", suffix: normalized), result.exitCode == 0 {
+            return
+        }
+
         guard await commandSucceeds("docker info >/dev/null 2>&1") else { return }
 
         let now = Date()
@@ -817,6 +838,144 @@ actor LocalDomainService {
         )
     }
 
+    private struct CLICallResult {
+        let exitCode: Int
+        let output: String
+    }
+
+    private func runColimaUICLIAction(_ action: String, suffix: String) async throws -> CLICallResult? {
+        guard let cliInvocation = await resolveColimaUICLIInvocation() else {
+            return nil
+        }
+
+        let suffixEscaped = Self.shellEscape(suffix)
+        let marker = "__COLIMAUI_EXIT__="
+        let command = """
+        set +e
+        \(cliInvocation) domains \(action) --suffix \(suffixEscaped) 2>&1
+        status=$?
+        echo "\(marker)$status"
+        """
+
+        let output = try await shell.run(command)
+        let lines = output.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+
+        var exitCode = 0
+        var filteredLines: [String] = []
+        for line in lines {
+            if line.hasPrefix(marker) {
+                let raw = line.replacingOccurrences(of: marker, with: "")
+                exitCode = Int(raw.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
+            } else {
+                filteredLines.append(line)
+            }
+        }
+
+        return CLICallResult(
+            exitCode: exitCode,
+            output: filteredLines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+    }
+
+    private func resolveColimaUICLIInvocation() async -> String? {
+        if await commandSucceeds("command -v colimaui >/dev/null 2>&1") {
+            return "colimaui"
+        }
+
+        let fileManager = FileManager.default
+        var candidates: [String] = []
+
+        if let bundled = Bundle.main.path(forResource: "colimaui", ofType: nil) {
+            candidates.append(bundled)
+        }
+
+        let cwd = fileManager.currentDirectoryPath
+        candidates.append("\(cwd)/scripts/colimaui")
+        candidates.append("\(cwd)/ColimaUI/scripts/colimaui")
+
+        if let bundlePath = Bundle.main.bundleURL.path.removingPercentEncoding {
+            let appParent = URL(fileURLWithPath: bundlePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .path
+            candidates.append("\(appParent)/scripts/colimaui")
+        }
+
+        for candidate in candidates where fileManager.isReadableFile(atPath: candidate) {
+            return "bash \(Self.shellEscape(candidate))"
+        }
+        return nil
+    }
+
+    private func parseCLICheckOutput(_ output: String) -> [LocalDomainCheck]? {
+        let idsByTitle: [String: String] = [
+            "Homebrew": "brew",
+            "Colima runtime": "colima",
+            "Docker API": "docker",
+            "dnsmasq": "dnsmasq-binary",
+            "dnsmasq service": "dnsmasq-service",
+            "Wildcard DNS": "dnsmasq-wildcard",
+            "macOS resolver": "resolver",
+            "Wildcard resolution": "resolution",
+            "Reverse proxy": "proxy",
+            "mkcert": "mkcert",
+            "TLS certificate": "cert",
+            "Domain index": "index"
+        ]
+
+        let titleOrder: [String] = [
+            "Homebrew",
+            "Colima runtime",
+            "Docker API",
+            "dnsmasq",
+            "dnsmasq service",
+            "Wildcard DNS",
+            "macOS resolver",
+            "Wildcard resolution",
+            "Reverse proxy",
+            "mkcert",
+            "TLS certificate",
+            "Domain index"
+        ]
+
+        var checksByID: [String: LocalDomainCheck] = [:]
+
+        for rawLine in output.split(separator: "\n") {
+            let line = String(rawLine)
+            let isPass = line.hasPrefix("PASS  ")
+            let isFail = line.hasPrefix("FAIL  ")
+            guard isPass || isFail else { continue }
+
+            let payload = String(line.dropFirst(6))
+            let titleField = String(payload.prefix(22)).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let id = idsByTitle[titleField] else { continue }
+            let detail = String(payload.dropFirst(min(22, payload.count)))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+
+            checksByID[id] = LocalDomainCheck(
+                id: id,
+                title: titleField,
+                isPassing: isPass,
+                detail: detail.isEmpty ? (isPass ? "Configured" : "Needs attention") : detail
+            )
+        }
+
+        if checksByID.isEmpty {
+            return nil
+        }
+
+        var orderedChecks: [LocalDomainCheck] = []
+        for title in titleOrder {
+            guard let id = idsByTitle[title], let check = checksByID[id] else { continue }
+            orderedChecks.append(check)
+        }
+
+        if orderedChecks.count < 6 {
+            return nil
+        }
+        return orderedChecks
+    }
+
     private func commandSucceeds(_ command: String) async -> Bool {
         do {
             _ = try await shell.run(command)
@@ -992,10 +1151,22 @@ struct SettingsView: View {
                                 .font(.system(size: 16, weight: .semibold))
                                 .foregroundColor(Theme.textPrimary)
 
-                            Text("Version 1.0.0")
+                            Text("Version \(appVersion)")
                                 .font(.system(size: 12))
                                 .foregroundColor(Theme.textMuted)
                         }
+
+                        Spacer()
+
+                        Link(destination: URL(string: "https://github.com/ryanmish/ColimaUI")!) {
+                            Image("GitHubIcon")
+                                .renderingMode(.template)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 18, height: 18)
+                                .foregroundColor(Theme.textSecondary)
+                        }
+                        .buttonStyle(.plain)
                     }
 
                     Text("A native macOS GUI for managing Colima virtual machines and Docker containers.")
@@ -1108,6 +1279,12 @@ struct SettingsView: View {
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
             .trimmingCharacters(in: CharacterSet(charactersIn: "."))
+    }
+
+    private var appVersion: String {
+        let shortVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"
+        return "\(shortVersion) (\(build))"
     }
 
     private func applyDomainSuffix(_ rawValue: String, triggerCheck: Bool) {

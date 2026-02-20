@@ -151,6 +151,26 @@ class DependencyChecker {
         }
     }
 
+    /// Install only the colimaui helper CLI
+    func installColimaUICLIOnly() async -> Bool {
+        isInstalling = true
+        installProgress = "Installing colimaui domain CLI..."
+
+        let installed = await installColimaUICLI()
+        let hasSystemColimaUICLI = await checkCommandExists("colimaui")
+        let hasUserColimaUICLI = await checkUserLocalCommandExists("colimaui")
+        hasColimaUICLI = installed || hasSystemColimaUICLI || hasUserColimaUICLI
+
+        isInstalling = false
+        if hasColimaUICLI {
+            installProgress = "colimaui CLI installed"
+            return true
+        }
+
+        installProgress = "Failed to install colimaui CLI"
+        return false
+    }
+
     /// Open Homebrew website
     func openHomebrewWebsite() {
         if let url = URL(string: "https://brew.sh") {
