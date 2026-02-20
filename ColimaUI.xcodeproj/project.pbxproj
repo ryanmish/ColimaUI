@@ -25,6 +25,7 @@
 		86E5C99A8CBDB002B789554E /* ImageListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42C138370D4A0952A799201A /* ImageListView.swift */; };
 		9060E60621CD7034D05A660C /* DockerVolume.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FAB7FA6EE809CA4BE3E863F /* DockerVolume.swift */; };
 		A5B2766E9C1F06C2AC6903A7 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 33AF1C5869327F9B46EFA08F /* Assets.xcassets */; };
+		A1F0C1D2E3F4051627384950 /* colimaui in Resources */ = {isa = PBXBuildFile; fileRef = A1F0C1D2E3F4051627384951 /* colimaui */; };
 		B2E9DF2980121CD77FBD19A6 /* DockerImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10837C7E1BF2640AA8F9E10 /* DockerImage.swift */; };
 		B31AABDAF8FE22E82B774B93 /* ContainerRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBC22FA2447EA579A9527196 /* ContainerRowView.swift */; };
 		B7AB1628F4A120C15B817EAB /* ColimaVM.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DB705272ED423601EA45940 /* ColimaVM.swift */; };
@@ -58,6 +59,7 @@
 		924E6BAED90F882F88162F67 /* ContainerListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContainerListView.swift; sourceTree = "<group>"; };
 		961608DDC7B1B0C0D4388BB6 /* ContainerDetail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContainerDetail.swift; sourceTree = "<group>"; };
 		9F1AEF308C0AC6863E5E9C98 /* VolumeListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VolumeListView.swift; sourceTree = "<group>"; };
+		A1F0C1D2E3F4051627384951 /* colimaui */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = colimaui; sourceTree = "<group>"; };
 		AC2C78FD9A5AB2A75D7E5276 /* Container.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Container.swift; sourceTree = "<group>"; };
 		B110B5E9F4EEED166CD9B50C /* ShellExecutor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShellExecutor.swift; sourceTree = "<group>"; };
 		C3911EFA73C0E9546896E0E8 /* CreateProfileSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateProfileSheet.swift; sourceTree = "<group>"; };
@@ -161,6 +163,7 @@
 			isa = PBXGroup;
 			children = (
 				33AF1C5869327F9B46EFA08F /* Assets.xcassets */,
+				A1F0C1D2E3F4051627384951 /* colimaui */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -274,6 +277,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A5B2766E9C1F06C2AC6903A7 /* Assets.xcassets in Resources */,
+				A1F0C1D2E3F4051627384950 /* colimaui in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

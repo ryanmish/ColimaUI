@@ -19,6 +19,8 @@ targets:
       - path: ColimaUI
         excludes:
           - "**/.DS_Store"
+    resources:
+      - path: ColimaUI/Resources/colimaui
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.colimaui.app

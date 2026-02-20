@@ -53,6 +53,13 @@ struct OnboardingView: View {
                         isInstalled: checker.hasDocker,
                         isRequired: true
                     )
+
+                    DependencyRow(
+                        name: "colimaui CLI",
+                        description: "Local domain helper (installed automatically)",
+                        isInstalled: checker.hasColimaUICLI,
+                        isRequired: false
+                    )
                 }
             }
             .padding(24)

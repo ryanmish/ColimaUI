@@ -1,0 +1,651 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PATH="/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/local/sbin:$PATH"
+
+SCRIPT_NAME="colimaui"
+CLI_VERSION="1.0.0"
+DNS_PORT="53535"
+MANAGED_DNSMASQ_CONFIG="colimaui.conf"
+SUDO_READY="0"
+CERT_DIR="${HOME}/Library/Application Support/ColimaUI/proxy/certs"
+DYNAMIC_DIR="${HOME}/Library/Application Support/ColimaUI/proxy/dynamic"
+
+log() {
+  printf '%s\n' "$*"
+}
+
+warn() {
+  printf 'WARN: %s\n' "$*" >&2
+}
+
+err() {
+  printf 'ERROR: %s\n' "$*" >&2
+}
+
+die() {
+  err "$*"
+  exit 1
+}
+
+usage() {
+  cat <<'EOF'
+ColimaUI CLI
+
+Usage:
+  colimaui --version
+  colimaui domains setup [--suffix <suffix>]
+  colimaui domains check [--suffix <suffix>]
+  colimaui domains sync [--suffix <suffix>]
+  colimaui domains unsetup [--suffix <suffix>] [--purge-packages]
+
+Notes:
+  - Suffix defaults to ColimaUI setting (containerDomainSuffix), then "colima".
+  - setup/unsetup may request sudo once for system resolver and trust changes.
+EOF
+}
+
+normalize_suffix() {
+  printf '%s' "${1:-}" \
+    | tr '[:upper:]' '[:lower:]' \
+    | sed -E 's/^[.]+//; s/[[:space:]]+//g'
+}
+
+default_suffix() {
+  local s
+  s="$(defaults read com.colimaui.app containerDomainSuffix 2>/dev/null || true)"
+  s="$(normalize_suffix "$s")"
+  if [[ -z "$s" ]]; then
+    s="colima"
+  fi
+  printf '%s' "$s"
+}
+
+brew_prefix() {
+  if command -v brew >/dev/null 2>&1; then
+    brew --prefix
+    return
+  fi
+  if [[ -d /opt/homebrew ]]; then
+    printf '%s' "/opt/homebrew"
+  else
+    printf '%s' "/usr/local"
+  fi
+}
+
+run_sudo_once() {
+  if [[ "$SUDO_READY" == "1" ]]; then
+    return
+  fi
+  sudo -v
+  SUDO_READY="1"
+}
+
+command_ok() {
+  local cmd="$1"
+  if eval "$cmd" >/dev/null 2>&1; then
+    return 0
+  fi
+  return 1
+}
+
+dnsmasq_running() {
+  command_ok "lsof -nP -iTCP:${DNS_PORT} -iUDP:${DNS_PORT} 2>/dev/null | grep -qi 'dnsmasq'"
+}
+
+docker_reachable() {
+  command_ok "colima status >/dev/null 2>&1" && command_ok "docker info >/dev/null 2>&1"
+}
+
+label_value() {
+  local labels="$1"
+  local key="$2"
+  printf '%s' "${labels:-}" | awk -F',' -v k="${key}=" '
+    {
+      for (i = 1; i <= NF; i++) {
+        if (index($i, k) == 1) {
+          print substr($i, length(k) + 1)
+          exit
+        }
+      }
+    }
+  '
+}
+
+normalize_domain_label() {
+  local v="$1"
+  v="$(printf '%s' "$v" | tr '[:upper:]_' '[:lower:]-' | sed -E 's/[^a-z0-9-]+/-/g; s/^-+//; s/-+$//')"
+  printf '%s' "$v"
+}
+
+normalize_full_domain() {
+  local v="$1"
+  local wildcard="0"
+  v="$(printf '%s' "$v" | tr '[:upper:]' '[:lower:]')"
+  v="${v#http://}"
+  v="${v#https://}"
+  v="${v%%/*}"
+  v="$(printf '%s' "$v" | sed -E 's/^[.]+//; s/[.]+$//; s/[[:space:]]+//g')"
+  if [[ -z "$v" ]]; then
+    return 1
+  fi
+
+  if [[ "$v" == "*."* ]]; then
+    wildcard="1"
+    v="${v#*.}"
+  fi
+
+  if [[ "$v" == *"*"* ]]; then
+    return 1
+  fi
+
+  local out=""
+  local part=""
+  local sanitized=""
+  local first="1"
+  IFS='.' read -r -a domain_parts <<< "$v"
+  for part in "${domain_parts[@]}"; do
+    sanitized="$(normalize_domain_label "$part")"
+    if [[ -z "$sanitized" ]]; then
+      return 1
+    fi
+    if [[ "$first" == "1" ]]; then
+      out="$sanitized"
+      first="0"
+    else
+      out="${out}.${sanitized}"
+    fi
+  done
+
+  if [[ "$wildcard" == "1" ]]; then
+    printf '*.%s' "$out"
+  else
+    printf '%s' "$out"
+  fi
+}
+
+preferred_http_port() {
+  local ports="$1"
+  local labels="$2"
+  local override=""
+  local p=""
+
+  override="$(label_value "$labels" "dev.colimaui.http-port" || true)"
+  if [[ "$override" =~ ^[0-9]+$ ]] && (( override >= 1 && override <= 65535 )); then
+    printf '%s' "$override"
+    return 0
+  fi
+
+  local candidates=""
+  local segment=""
+  local rhs=""
+  local c=""
+  IFS=',' read -r -a port_segments <<< "$ports"
+  for segment in "${port_segments[@]}"; do
+    segment="$(printf '%s' "$segment" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
+    c=""
+    if [[ "$segment" == *"->"* ]]; then
+      rhs="${segment#*->}"
+      c="${rhs%%/*}"
+    elif [[ "$segment" != *":"* && "$segment" == */* ]]; then
+      c="${segment%%/*}"
+    fi
+    if [[ "$c" =~ ^[0-9]+$ ]] && (( c >= 1 && c <= 65535 )); then
+      if ! printf '%s\n' "$candidates" | grep -Fxq "$c"; then
+        candidates="${candidates}${c}"$'\n'
+      fi
+    fi
+  done
+
+  for p in 80 8080 3000 5173 8000 5000 4200 4000 9000 8888 443 7000 1337; do
+    if printf '%s' "$candidates" | grep -Fxq "$p"; then
+      printf '%s' "$p"
+      return 0
+    fi
+  done
+
+  printf '%s' ""
+}
+
+ensure_proxy_container() {
+  local dynamic_dir="$1"
+  local cert_dir="$2"
+
+  docker_reachable || return 0
+  mkdir -p "$dynamic_dir" "$cert_dir"
+
+  if ! docker ps --format '{{.Names}}' | grep -Fxq 'colimaui-proxy'; then
+    docker rm -f colimaui-proxy >/dev/null 2>&1 || true
+    docker run -d --name colimaui-proxy --restart unless-stopped \
+      -p 80:80 -p 443:443 \
+      -v "$dynamic_dir:/etc/traefik/dynamic" \
+      -v "$cert_dir:/etc/traefik/certs:ro" \
+      traefik:v2.11 \
+      --providers.file.directory=/etc/traefik/dynamic \
+      --providers.file.watch=true \
+      --api.dashboard=true \
+      --entrypoints.web.address=:80 \
+      --entrypoints.web.http.redirections.entryPoint.to=websecure \
+      --entrypoints.web.http.redirections.entryPoint.scheme=https \
+      --entrypoints.websecure.http.tls=true \
+      --entrypoints.websecure.address=:443 >/dev/null
+  fi
+}
+
+attach_proxy_to_networks() {
+  docker_reachable || return 0
+  docker ps --format '{{.Names}}' | grep -Fxq 'colimaui-proxy' || return 0
+
+  local networks=""
+  networks="$(docker ps -q | while read -r id; do
+    docker inspect --format '{{range $name, $_ := .NetworkSettings.Networks}}{{$name}} {{end}}' "$id" 2>/dev/null
+  done | tr ' ' '\n' | sed '/^$/d' | sort -u)"
+
+  local network=""
+  for network in $networks; do
+    [[ "$network" == "host" || "$network" == "none" ]] && continue
+    docker network connect "$network" colimaui-proxy >/dev/null 2>&1 || true
+  done
+}
+
+write_tls_dynamic() {
+  local suffix="$1"
+  local dynamic_dir="$2"
+  mkdir -p "$dynamic_dir"
+  cat > "${dynamic_dir}/tls.yml" <<EOF
+tls:
+  stores:
+    default:
+      defaultCertificate:
+        certFile: /etc/traefik/certs/${suffix}.pem
+        keyFile: /etc/traefik/certs/${suffix}-key.pem
+EOF
+}
+
+sync_routes() {
+  local suffix="$1"
+  local dynamic_dir="$2"
+  mkdir -p "$dynamic_dir"
+  docker_reachable || return 0
+  ensure_proxy_container "$dynamic_dir" "$CERT_DIR"
+  attach_proxy_to_networks
+
+  local routers_file services_file route_keys_file service_keys_file
+  routers_file="$(mktemp)"
+  services_file="$(mktemp)"
+  route_keys_file="$(mktemp)"
+  service_keys_file="$(mktemp)"
+  local route_idx=0
+
+  add_route() {
+    local rule="$1"
+    local service="$2"
+    local key="${rule}|${service}"
+    if grep -Fxq "$key" "$route_keys_file"; then
+      return
+    fi
+    echo "$key" >> "$route_keys_file"
+    route_idx=$((route_idx + 1))
+    {
+      echo "    r${route_idx}:"
+      printf '      rule: "%s"\n' "$rule"
+      echo '      entryPoints: ["web", "websecure"]'
+      echo "      service: ${service}"
+      echo '      tls: {}'
+    } >> "$routers_file"
+  }
+
+  add_service() {
+    local service="$1"
+    local url="$2"
+    if grep -Fxq "$service" "$service_keys_file"; then
+      return
+    fi
+    echo "$service" >> "$service_keys_file"
+    {
+      echo "    ${service}:"
+      echo "      loadBalancer:"
+      echo "        servers:"
+      echo "          - url: \"${url}\""
+    } >> "$services_file"
+  }
+
+  add_route "Host(\`index.${suffix}\`)" "api@internal"
+
+  local line id name ports labels port ip short service_name
+  while IFS=$'\t' read -r id name ports labels; do
+    [[ -z "$id" ]] && continue
+
+    port="$(preferred_http_port "${ports:-}" "${labels:-}")"
+    [[ -z "$port" ]] && continue
+
+    ip="$(docker inspect --format '{{range .NetworkSettings.Networks}}{{if .IPAddress}}{{.IPAddress}} {{end}}{{end}}' "$id" 2>/dev/null | awk '{print $1}')"
+    [[ -z "$ip" ]] && continue
+
+    short="$(printf '%s' "$id" | tr -cd '[:alnum:]' | cut -c1-12)"
+    [[ -z "$short" ]] && short="container"
+    service_name="s${short}p${port}"
+    add_service "$service_name" "http://${ip}:${port}"
+
+    local domains_file
+    domains_file="$(mktemp)"
+
+    local compose_service compose_project container_label full
+    compose_service="$(label_value "${labels:-}" "com.docker.compose.service" || true)"
+    compose_project="$(label_value "${labels:-}" "com.docker.compose.project" || true)"
+
+    if [[ -n "$compose_service" && -n "$compose_project" ]]; then
+      compose_service="$(normalize_domain_label "$compose_service")"
+      compose_project="$(normalize_domain_label "$compose_project")"
+      if [[ -n "$compose_service" && -n "$compose_project" ]]; then
+        echo "${compose_service}.${compose_project}.${suffix}" >> "$domains_file"
+      fi
+    fi
+
+    container_label="$(normalize_domain_label "$name")"
+    if [[ -n "$container_label" ]]; then
+      echo "${container_label}.${suffix}" >> "$domains_file"
+    fi
+
+    local custom_domains
+    custom_domains="$(label_value "${labels:-}" "dev.colimaui.domains" || true)"
+    if [[ -n "$custom_domains" ]]; then
+      local d normalized
+      IFS=',' read -r -a custom_parts <<< "$custom_domains"
+      for d in "${custom_parts[@]}"; do
+        normalized="$(normalize_full_domain "$d" || true)"
+        [[ -n "$normalized" ]] && echo "$normalized" >> "$domains_file"
+      done
+    fi
+
+    if [[ -s "$domains_file" ]]; then
+      while IFS= read -r full; do
+        [[ -z "$full" ]] && continue
+        if [[ "$full" == "*."* ]]; then
+          add_route "HostRegexp(\`{subdomain:.+}.${full#*.}\`)" "$service_name"
+        else
+          add_route "Host(\`${full}\`)" "$service_name"
+          add_route "HostRegexp(\`{subdomain:.+}.${full}\`)" "$service_name"
+        fi
+      done < <(sort -u "$domains_file")
+    fi
+
+    rm -f "$domains_file"
+  done < <(docker ps --format $'{{.ID}}\t{{.Names}}\t{{.Ports}}\t{{.Labels}}')
+
+  {
+    echo "http:"
+    echo "  routers:"
+    if [[ -s "$routers_file" ]]; then
+      cat "$routers_file"
+    else
+      echo "    r1:"
+      echo "      rule: \"Host(\`index.${suffix}\`)\""
+      echo '      entryPoints: ["web", "websecure"]'
+      echo "      service: api@internal"
+      echo '      tls: {}'
+    fi
+
+    echo "  services:"
+    if [[ -s "$services_file" ]]; then
+      cat "$services_file"
+    else
+      echo "    noop:"
+      echo "      loadBalancer:"
+      echo "        servers:"
+      echo "          - url: \"http://127.0.0.1:65535\""
+    fi
+  } > "${dynamic_dir}/routes.yml"
+
+  rm -f "$routers_file" "$services_file" "$route_keys_file" "$service_keys_file"
+}
+
+check_status() {
+  local suffix="$1"
+  local fail_count=0
+  local ok detail
+  local brew_pfx managed_conf resolver_file cert_file key_file
+
+  brew_pfx="$(brew_prefix)"
+  managed_conf="${brew_pfx}/etc/dnsmasq.d/${MANAGED_DNSMASQ_CONFIG}"
+  resolver_file="/etc/resolver/${suffix}"
+  cert_file="${CERT_DIR}/${suffix}.pem"
+  key_file="${CERT_DIR}/${suffix}-key.pem"
+
+  print_check() {
+    local title="$1"
+    local pass="$2"
+    local info="$3"
+    if [[ "$pass" == "1" ]]; then
+      printf 'PASS  %-22s %s\n' "$title" "$info"
+    else
+      printf 'FAIL  %-22s %s\n' "$title" "$info"
+      fail_count=$((fail_count + 1))
+    fi
+  }
+
+  if command -v brew >/dev/null 2>&1; then ok=1; detail="Installed"; else ok=0; detail="Missing"; fi
+  print_check "Homebrew" "$ok" "$detail"
+
+  if command_ok "colima status >/dev/null 2>&1"; then ok=1; detail="Running"; else ok=0; detail="Not running"; fi
+  print_check "Colima runtime" "$ok" "$detail"
+
+  if command_ok "docker info >/dev/null 2>&1"; then ok=1; detail="Reachable"; else ok=0; detail="Unavailable"; fi
+  print_check "Docker API" "$ok" "$detail"
+
+  if command -v dnsmasq >/dev/null 2>&1; then ok=1; detail="Installed"; else ok=0; detail="Missing"; fi
+  print_check "dnsmasq" "$ok" "$detail"
+
+  if dnsmasq_running; then ok=1; detail="Running on ${DNS_PORT}"; else ok=0; detail="Not running"; fi
+  print_check "dnsmasq service" "$ok" "$detail"
+
+  if [[ -f "$managed_conf" ]] && grep -Fqx "address=/.${suffix}/127.0.0.1" "$managed_conf"; then ok=1; detail="*.${suffix} -> 127.0.0.1"; else ok=0; detail="Rule missing"; fi
+  print_check "Wildcard DNS" "$ok" "$detail"
+
+  if [[ -f "$resolver_file" ]] && grep -Fqx "nameserver 127.0.0.1" "$resolver_file" && grep -Fqx "port ${DNS_PORT}" "$resolver_file"; then ok=1; detail="$resolver_file configured"; else ok=0; detail="Resolver missing or invalid"; fi
+  print_check "macOS resolver" "$ok" "$detail"
+
+  if dnsmasq_running && command_ok "dscacheutil -q host -a name colimaui-check.${suffix} | grep -q 'ip_address: 127.0.0.1'"; then ok=1; detail="Hostnames resolve to 127.0.0.1"; else ok=0; detail="Wildcard lookup not resolving"; fi
+  print_check "Wildcard resolution" "$ok" "$detail"
+
+  if command_ok "docker ps --format '{{.Names}}' 2>/dev/null | grep -Fxq colimaui-proxy"; then ok=1; detail="colimaui-proxy running"; else ok=0; detail="Proxy not running"; fi
+  print_check "Reverse proxy" "$ok" "$detail"
+
+  if command -v mkcert >/dev/null 2>&1; then ok=1; detail="Installed"; else ok=0; detail="Missing"; fi
+  print_check "mkcert" "$ok" "$detail"
+
+  if [[ -f "$cert_file" && -f "$key_file" ]]; then ok=1; detail="Wildcard cert generated"; else ok=0; detail="Certificate missing"; fi
+  print_check "TLS certificate" "$ok" "$detail"
+
+  if command_ok "curl -sS --connect-timeout 2 --max-time 4 -o /dev/null https://index.${suffix}"; then ok=1; detail="Trusted HTTPS reachable"; else ok=0; detail="Index unreachable or TLS untrusted"; fi
+  print_check "Domain index" "$ok" "$detail"
+
+  if (( fail_count > 0 )); then
+    return 1
+  fi
+  return 0
+}
+
+setup_domains() {
+  local suffix="$1"
+  local brew_pfx managed_dir managed_conf resolver_file caroot
+
+  command -v brew >/dev/null 2>&1 || die "Homebrew is required"
+
+  brew_pfx="$(brew_prefix)"
+  managed_dir="${brew_pfx}/etc/dnsmasq.d"
+  managed_conf="${managed_dir}/${MANAGED_DNSMASQ_CONFIG}"
+  resolver_file="/etc/resolver/${suffix}"
+  caroot="${HOME}/Library/Application Support/mkcert"
+
+  CERT_DIR="${HOME}/Library/Application Support/ColimaUI/proxy/certs"
+  DYNAMIC_DIR="${HOME}/Library/Application Support/ColimaUI/proxy/dynamic"
+
+  log "Installing dependencies (dnsmasq, mkcert)..."
+  command_ok "brew list dnsmasq >/dev/null 2>&1" || brew install dnsmasq
+  command_ok "brew list mkcert >/dev/null 2>&1" || brew install mkcert
+
+  log "Applying privileged DNS/resolver/trust setup..."
+  run_sudo_once
+  sudo mkdir -p "$managed_dir" /etc/resolver "$caroot"
+  cat <<EOF | sudo tee "$managed_conf" >/dev/null
+# Managed by ColimaUI CLI
+listen-address=127.0.0.1
+bind-interfaces
+port=${DNS_PORT}
+address=/.${suffix}/127.0.0.1
+EOF
+  cat <<EOF | sudo tee "$resolver_file" >/dev/null
+nameserver 127.0.0.1
+port ${DNS_PORT}
+EOF
+  sudo env "PATH=$PATH" "CAROOT=$caroot" mkcert -install >/dev/null 2>&1 || true
+  if [[ -f "${caroot}/rootCA.pem" ]]; then
+    sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain "${caroot}/rootCA.pem" >/dev/null 2>&1 || true
+  fi
+  sudo chown -R "$USER" "$caroot" >/dev/null 2>&1 || true
+
+  log "Starting dnsmasq service..."
+  brew services start dnsmasq >/dev/null 2>&1 || true
+
+  local tries=0
+  until dnsmasq_running || (( tries >= 20 )); do
+    tries=$((tries + 1))
+    sleep 0.2
+  done
+  dnsmasq_running || warn "dnsmasq did not report running yet"
+
+  mkdir -p "$CERT_DIR" "$DYNAMIC_DIR"
+
+  log "Generating wildcard certificate for .${suffix}..."
+  CAROOT="$caroot" mkcert -cert-file "${CERT_DIR}/${suffix}.pem" -key-file "${CERT_DIR}/${suffix}-key.pem" "*.${suffix}" "${suffix}" "index.${suffix}" localhost 127.0.0.1 ::1 >/dev/null
+
+  write_tls_dynamic "$suffix" "$DYNAMIC_DIR"
+
+  if docker_reachable; then
+    log "Ensuring reverse proxy and syncing routes..."
+    ensure_proxy_container "$DYNAMIC_DIR" "$CERT_DIR"
+    sync_routes "$suffix" "$DYNAMIC_DIR"
+  else
+    warn "Docker API unreachable; skipped proxy startup/sync"
+  fi
+
+  dscacheutil -flushcache >/dev/null 2>&1 || true
+  log ""
+  check_status "$suffix"
+}
+
+unsetup_domains() {
+  local suffix="$1"
+  local purge_packages="$2"
+  local brew_pfx managed_conf resolver_file caroot
+
+  brew_pfx="$(brew_prefix)"
+  managed_conf="${brew_pfx}/etc/dnsmasq.d/${MANAGED_DNSMASQ_CONFIG}"
+  resolver_file="/etc/resolver/${suffix}"
+  caroot="${HOME}/Library/Application Support/mkcert"
+  CERT_DIR="${HOME}/Library/Application Support/ColimaUI/proxy/certs"
+  DYNAMIC_DIR="${HOME}/Library/Application Support/ColimaUI/proxy/dynamic"
+
+  log "Removing managed proxy and domain config..."
+  docker rm -f colimaui-proxy >/dev/null 2>&1 || true
+  rm -f "${CERT_DIR}/${suffix}.pem" "${CERT_DIR}/${suffix}-key.pem" "${DYNAMIC_DIR}/routes.yml" "${DYNAMIC_DIR}/tls.yml" >/dev/null 2>&1 || true
+
+  command -v brew >/dev/null 2>&1 && brew services stop dnsmasq >/dev/null 2>&1 || true
+
+  run_sudo_once
+  sudo rm -f "$managed_conf" "$resolver_file" >/dev/null 2>&1 || true
+  if [[ "$suffix" != "colima" ]]; then
+    sudo rm -f /etc/resolver/colima >/dev/null 2>&1 || true
+  fi
+
+  if [[ "$purge_packages" == "1" ]]; then
+    log "Purging dnsmasq/mkcert packages..."
+    CAROOT="$caroot" mkcert -uninstall >/dev/null 2>&1 || true
+    command -v brew >/dev/null 2>&1 && brew uninstall --formula dnsmasq mkcert >/dev/null 2>&1 || true
+  fi
+
+  dscacheutil -flushcache >/dev/null 2>&1 || true
+  log "Unsetup complete for .${suffix}"
+}
+
+main() {
+  local namespace="${1:-}"
+  local action="${2:-}"
+  local suffix=""
+  local purge_packages="0"
+
+  if [[ "$namespace" == "-v" || "$namespace" == "--version" ]]; then
+    log "${SCRIPT_NAME} ${CLI_VERSION}"
+    exit 0
+  fi
+
+  if [[ -z "$namespace" || "$namespace" == "-h" || "$namespace" == "--help" ]]; then
+    usage
+    exit 0
+  fi
+
+  if [[ "$namespace" != "domains" ]]; then
+    usage
+    die "Unknown namespace: $namespace"
+  fi
+
+  if [[ -z "$action" || "$action" == "-h" || "$action" == "--help" ]]; then
+    usage
+    exit 0
+  fi
+
+  shift 2
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --suffix)
+        suffix="${2:-}"
+        shift 2
+        ;;
+      --purge-packages)
+        purge_packages="1"
+        shift
+        ;;
+      -h|--help)
+        usage
+        exit 0
+        ;;
+      *)
+        usage
+        die "Unknown argument: $1"
+        ;;
+    esac
+  done
+
+  suffix="$(normalize_suffix "${suffix:-}")"
+  if [[ -z "$suffix" ]]; then
+    suffix="$(default_suffix)"
+  fi
+  [[ -n "$suffix" ]] || suffix="colima"
+
+  case "$action" in
+    setup)
+      setup_domains "$suffix"
+      ;;
+    check)
+      check_status "$suffix"
+      ;;
+    sync)
+      CERT_DIR="${HOME}/Library/Application Support/ColimaUI/proxy/certs"
+      DYNAMIC_DIR="${HOME}/Library/Application Support/ColimaUI/proxy/dynamic"
+      mkdir -p "$CERT_DIR" "$DYNAMIC_DIR"
+      write_tls_dynamic "$suffix" "$DYNAMIC_DIR"
+      sync_routes "$suffix" "$DYNAMIC_DIR"
+      log "Route sync complete for .${suffix}"
+      ;;
+    unsetup)
+      unsetup_domains "$suffix" "$purge_packages"
+      ;;
+    *)
+      usage
+      die "Unknown action: $action"
+      ;;
+  esac
+}
+
+main "$@"
