@@ -17,9 +17,7 @@ actor ShellExecutor {
         } else {
             env["PATH"] = "\(brewPaths):/usr/bin:/bin:/usr/sbin:/sbin"
         }
-        // Set DOCKER_HOST to Colima's socket so Docker commands work automatically
-        let homeDir = env["HOME"] ?? NSHomeDirectory()
-        env["DOCKER_HOST"] = "unix://\(homeDir)/.colima/default/docker.sock"
+        // Do not hard-code DOCKER_HOST; rely on the active Docker context/profile.
         shellEnvironment = env
     }
 
@@ -69,7 +67,15 @@ actor ShellExecutor {
     /// This triggers the standard system password prompt.
     func runPrivileged(_ command: String, prompt: String? = nil) async throws -> String {
         let path = shellEnvironment["PATH"] ?? "/usr/bin:/bin:/usr/sbin:/sbin"
-        let fullCommand = "export PATH=\(path); \(command)"
+        let home = shellEnvironment["HOME"] ?? NSHomeDirectory()
+        let user = shellEnvironment["USER"] ?? NSUserName()
+        let fullCommand = """
+        export PATH=\(Self.shellQuote(path))
+        export HOME=\(Self.shellQuote(home))
+        export USER=\(Self.shellQuote(user))
+        export LOGNAME=\(Self.shellQuote(user))
+        \(command)
+        """
         let escaped = Self.escapeForAppleScript(fullCommand)
         var script = "do shell script \"\(escaped)\""
         if let prompt, !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -125,6 +131,10 @@ actor ShellExecutor {
         value
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
+    }
+
+    private static func shellQuote(_ value: String) -> String {
+        "'\(value.replacingOccurrences(of: "'", with: "'\\''"))'"
     }
 }
 

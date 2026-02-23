@@ -1,8 +1,16 @@
 import SwiftUI
 import AppKit
 
+final class AppLifecycleDelegate: NSObject, NSApplicationDelegate {
+    func applicationWillTerminate(_ notification: Notification) {
+        LocalDomainsAutopilot.shared.stop()
+    }
+}
+
 @main
 struct ColimaUIApp: App {
+    @NSApplicationDelegateAdaptor(AppLifecycleDelegate.self) var appDelegate
+
     var body: some Scene {
         WindowGroup {
             RootView()
@@ -33,7 +41,7 @@ struct MenuBarMenuView: View {
     @State private var domainHealthy = false
 
     @AppStorage("enableContainerDomains") private var enableContainerDomains: Bool = false
-    @AppStorage("containerDomainSuffix") private var containerDomainSuffix: String = "local"
+    @AppStorage("containerDomainSuffix") private var containerDomainSuffix: String = LocalDomainDefaults.suffix
     @AppStorage("preferHTTPSDomains") private var preferHTTPSDomains: Bool = false
 
     private struct DomainEntry: Identifiable {
@@ -53,15 +61,13 @@ struct MenuBarMenuView: View {
     }
 
     private var normalizedSuffix: String {
-        containerDomainSuffix
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-            .trimmingCharacters(in: CharacterSet(charactersIn: "."))
+        _ = containerDomainSuffix
+        return LocalDomainDefaults.suffix
     }
 
     private var domainEntries: [DomainEntry] {
         guard enableContainerDomains else { return [] }
-        let suffix = normalizedSuffix.isEmpty ? "local" : normalizedSuffix
+        let suffix = normalizedSuffix.isEmpty ? LocalDomainDefaults.suffix : normalizedSuffix
 
         return runningContainers.compactMap { container in
             let domains = container.localDomains(domainSuffix: suffix)
@@ -162,6 +168,7 @@ struct MenuBarMenuView: View {
             Divider()
 
             Button("Quit ColimaUI") {
+                LocalDomainsAutopilot.shared.stop()
                 NSApp.terminate(nil)
             }
         }
@@ -206,7 +213,7 @@ struct MenuBarMenuView: View {
     private func openDomainIndex() {
         guard enableContainerDomains else { return }
         let scheme = preferHTTPSDomains ? "https" : "http"
-        let suffix = normalizedSuffix.isEmpty ? "local" : normalizedSuffix
+        let suffix = normalizedSuffix.isEmpty ? LocalDomainDefaults.suffix : normalizedSuffix
         guard let url = URL(string: "\(scheme)://index.\(suffix)") else { return }
         NSWorkspace.shared.open(url)
     }
@@ -228,7 +235,7 @@ struct MenuBarMenuView: View {
 
     private func copyDomainIndex() {
         let scheme = preferHTTPSDomains ? "https" : "http"
-        let suffix = normalizedSuffix.isEmpty ? "local" : normalizedSuffix
+        let suffix = normalizedSuffix.isEmpty ? LocalDomainDefaults.suffix : normalizedSuffix
         let value = "\(scheme)://index.\(suffix)"
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(value, forType: .string)
@@ -243,7 +250,7 @@ struct RootView: View {
     private let forceOnboarding = ProcessInfo.processInfo.arguments.contains("-force-onboarding")
 
     private var currentView: ViewState {
-        if forceOnboarding {
+        if forceOnboarding && !hasCompletedOnboarding {
             return .onboarding
         } else if isChecking {
             return .loading

@@ -9,17 +9,17 @@ Before:
 - Frontend and backend URLs vary by project.
 
 After:
-- You use stable domains (`web.myapp.colima`, `api.myapp.colima`).
-- ColimaUI automatically configures DNS, resolver, reverse proxy, and TLS.
-- You can open a live domain index at `index.<suffix>`.
+- You use stable domains (`web.myapp.dev.local`, `api.myapp.dev.local`).
+- ColimaUI autopilot keeps DNS, resolver, proxy, and TLS aligned.
+- You can open a live domain index at `index.dev.local`.
 
 ## One-Time Setup
 
 1. Open `Settings -> Local Domains`.
 2. Enable Local Domains.
-3. Keep the default suffix `.local` or set your own (for example `.mish`).
-4. Click `One-Click Setup`.
-5. Wait for all setup checks to become healthy.
+3. Suffix is fixed to `.dev.local`.
+4. Wait for autopilot to reach `Healthy` (or click `Repair now` once).
+5. If needed, open `Advanced Tools` to inspect detailed checks.
 
 Notes:
 - macOS can prompt for admin credentials to configure resolver and service-level networking.
@@ -27,22 +27,24 @@ Notes:
 
 ## Daily Workflow
 
-1. Start your stack (`docker compose up`).
-2. Open service domains from ColimaUI container rows/details.
-3. Use `index.<suffix>` to inspect live routes and proxy status.
+1. Start your stack (`docker compose up -d`).
+2. Autopilot should sync routes automatically.
+3. List live service URLs (`colimaui domains urls`).
+4. If needed, force route sync (`colimaui domains sync`).
+5. Use `index.dev.local` to inspect live routes and proxy status.
 
 For most web services, no localhost port memorization is needed.
 
 ## Domain Rules
 
 Generated domains:
-1. Compose style: `service.project.<suffix>`
-2. Container fallback: `container-name.<suffix>`
-3. Custom labels: `dev.colimaui.domains=api.mish,docs.mish`
-4. Custom wildcard labels: `dev.colimaui.domains=*.preview.mish`
+1. Compose style: `service.project.dev.local`
+2. Container fallback: `container-name.dev.local`
+3. Custom labels: `dev.colimaui.domains=api.dev.local,docs.dev.local`
+4. Custom wildcard labels: `dev.colimaui.domains=*.preview.dev.local`
 
 Wildcard behavior:
-- Generated domains also accept subdomains (`*.service.project.<suffix>`).
+- Generated domains also accept subdomains (`*.service.project.dev.local`).
 - Custom wildcard labels route all matching subdomains.
 
 ## Optional Labels
@@ -54,7 +56,7 @@ services:
   api:
     image: my-api
     labels:
-      - dev.colimaui.domains=api.myapp.mish,docs.myapp.mish
+      - dev.colimaui.domains=api.myapp.dev.local,docs.myapp.dev.local
       - dev.colimaui.http-port=8080
 ```
 
@@ -80,9 +82,9 @@ services:
 ```
 
 Result:
-- `web.<project>.<suffix>` routes to frontend
-- `api.<project>.<suffix>` routes to backend
-- DB remains a direct host:port protocol (for example `db.<project>.<suffix>:5432` if published)
+- `web.<project>.dev.local` routes to frontend
+- `api.<project>.dev.local` routes to backend
+- DB remains a direct host:port protocol (for example `db.<project>.dev.local:5432` if published)
 
 ## Troubleshooting
 
@@ -90,12 +92,13 @@ In `Settings -> Local Domains`, verify:
 - Homebrew
 - dnsmasq installed/running
 - wildcard DNS line configured
-- `/etc/resolver/<suffix>` configured
+- `/etc/resolver/dev.local` configured
 - wildcard resolution works
 - proxy is running
 - mkcert installed
 - TLS certificate exists
-- `https://index.<suffix>` is reachable
+- `Domain index` passes (proxy/routing path is reachable)
+- `TLS trust` passes (certificate chain is trusted by macOS tools/browsers)
 
 If one check fails, fix that check first.
 
@@ -105,4 +108,4 @@ For AI assistants and automation agents, copy the snippet in:
 
 - `docs/agent-memory-snippet.md`
 
-You can also copy this directly from the app in `Settings -> Docs + Agent Copy Pack -> Copy Agent Snippet`.
+You can also copy this directly from the app in `Settings -> Agent Context -> Copy Context` and paste into `AGENTS.md` or `CLAUDE.md` (Claude Code).

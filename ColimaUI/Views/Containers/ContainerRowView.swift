@@ -17,14 +17,13 @@ struct ContainerRowView: View {
     var onShowDetails: (() -> Void)? = nil
 
     @AppStorage("enableContainerDomains") private var enableContainerDomains: Bool = true
-    @AppStorage("containerDomainSuffix") private var containerDomainSuffix: String = "local"
     @AppStorage("preferHTTPSDomains") private var preferHTTPSDomains: Bool = false
 
     @State private var isHovered = false
 
     private var primaryDomain: String? {
         guard enableContainerDomains else { return nil }
-        return container.primaryLocalDomain(domainSuffix: containerDomainSuffix)
+        return container.primaryLocalDomain(domainSuffix: LocalDomainDefaults.suffix)
     }
 
     var body: some View {

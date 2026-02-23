@@ -10,9 +10,11 @@
 		012FD451E4F6196633B6B077 /* ToastView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC1DEF143C74878241FE9E5C /* ToastView.swift */; };
 		0C942B0C2360609CBD5761A7 /* ColimaUIApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCEF5F2B313F6030BA351ED5 /* ColimaUIApp.swift */; };
 		0FA7209CC574975714F3938E /* VolumeListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F1AEF308C0AC6863E5E9C98 /* VolumeListView.swift */; };
+		1A3775DD6AD842F6C2DDE3C0 /* LocalDomainsIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B921A7ED369A1A983DBFDBA /* LocalDomainsIntegrationTests.swift */; };
 		26B42BF572193A28B1B8CBD7 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56BEAEA1635CC46244AA5935 /* Theme.swift */; };
 		27A9D6359DA1EA9E85B2B75E /* ContainerLogsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9577B6E97AD696B6CCFA9B8 /* ContainerLogsView.swift */; };
 		27BE838A1926EFA42AAE551C /* CleanupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFD2937515617112CD899828 /* CleanupView.swift */; };
+		30FA55841C2D89C4D1810DC4 /* LocalDomainDefaultsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71A681B6C0DEF05D130BFF3 /* LocalDomainDefaultsTests.swift */; };
 		345750367CAF4481D631697C /* AppViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B0A9143A615998095AB9B5C /* AppViewModel.swift */; };
 		3E248BAB5F7B2E0648109CEF /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F3F802E0AEC8319E34196BC /* OnboardingView.swift */; };
 		4054008686278D1A56E1535E /* ContainerStats.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38913BA08CED24A8C61076C6 /* ContainerStats.swift */; };
@@ -20,12 +22,15 @@
 		550A574A4F2D28837B3D99BA /* CreateProfileSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3911EFA73C0E9546896E0E8 /* CreateProfileSheet.swift */; };
 		5FCB2E1212EAF6BD2AAF0BEC /* ColimaService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76FC7F0ABFFA7A77AFA0DD94 /* ColimaService.swift */; };
 		65CE2F81054D2356427FD527 /* ShellExecutor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B110B5E9F4EEED166CD9B50C /* ShellExecutor.swift */; };
+		684B77BB555FAC0E851482B4 /* LocalDomainDefaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA1BA9FA5F56336651084096 /* LocalDomainDefaults.swift */; };
 		83F4222F1A89E7625B1C7162 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 685F05EB87E7A9A352A61264 /* SettingsView.swift */; };
 		848D7F4E205646D8C406C3C2 /* DockerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46FDCA95D401A35E8A40DD0A /* DockerService.swift */; };
 		86E5C99A8CBDB002B789554E /* ImageListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42C138370D4A0952A799201A /* ImageListView.swift */; };
 		9060E60621CD7034D05A660C /* DockerVolume.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FAB7FA6EE809CA4BE3E863F /* DockerVolume.swift */; };
+		92E03416A53AD951E16B1D42 /* LocalDomainsAutopilotPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA7434C9F8D31BF76FC6B36D /* LocalDomainsAutopilotPolicyTests.swift */; };
 		A5B2766E9C1F06C2AC6903A7 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 33AF1C5869327F9B46EFA08F /* Assets.xcassets */; };
-		A1F0C1D2E3F4051627384950 /* colimaui in Resources */ = {isa = PBXBuildFile; fileRef = A1F0C1D2E3F4051627384951 /* colimaui */; };
+		B07EAAA6E762AE92586C50E4 /* LocalDomainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56CC92768614DCE1CF1B1A1C /* LocalDomainService.swift */; };
+		B1DBE116BB0BBC5669A4DB21 /* LocalDomainsAutopilot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E2E815FBFE463196EF12247 /* LocalDomainsAutopilot.swift */; };
 		B2E9DF2980121CD77FBD19A6 /* DockerImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10837C7E1BF2640AA8F9E10 /* DockerImage.swift */; };
 		B31AABDAF8FE22E82B774B93 /* ContainerRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBC22FA2447EA579A9527196 /* ContainerRowView.swift */; };
 		B7AB1628F4A120C15B817EAB /* ColimaVM.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DB705272ED423601EA45940 /* ColimaVM.swift */; };
@@ -36,7 +41,18 @@
 		E306FCAD5F6A06B6FAB13CC8 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06564384B6FDE1C935068375 /* SidebarView.swift */; };
 		E9B909D8B88A151B12C114CA /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37035A6EBB5B0183B57DABB5 /* MainView.swift */; };
 		EC35916DD3DBB2021969D5D2 /* DependencyChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC5131E24F21B9ADFA7AA07E /* DependencyChecker.swift */; };
+		F1E2784B9A0C4C4585A89D11 /* colimaui in Resources */ = {isa = PBXBuildFile; fileRef = E050B3C8C66DC0F59CD67309 /* colimaui */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		F95A5593799CC184BE480EA2 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C839145CD2C2178A7B31B908 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 81F1E256B40A8F268DB1A6F2;
+			remoteInfo = ColimaUI;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		06564384B6FDE1C935068375 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
@@ -51,23 +67,30 @@
 		4042678BC39E086DBE55642F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		42C138370D4A0952A799201A /* ImageListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageListView.swift; sourceTree = "<group>"; };
 		46FDCA95D401A35E8A40DD0A /* DockerService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockerService.swift; sourceTree = "<group>"; };
+		4B921A7ED369A1A983DBFDBA /* LocalDomainsIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalDomainsIntegrationTests.swift; sourceTree = "<group>"; };
 		52D88447441225F2E1D819D0 /* ColimaUI.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ColimaUI.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		56BEAEA1635CC46244AA5935 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		56CC92768614DCE1CF1B1A1C /* LocalDomainService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalDomainService.swift; sourceTree = "<group>"; };
 		5FAB7FA6EE809CA4BE3E863F /* DockerVolume.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockerVolume.swift; sourceTree = "<group>"; };
 		685F05EB87E7A9A352A61264 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		76FC7F0ABFFA7A77AFA0DD94 /* ColimaService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColimaService.swift; sourceTree = "<group>"; };
+		8E2E815FBFE463196EF12247 /* LocalDomainsAutopilot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalDomainsAutopilot.swift; sourceTree = "<group>"; };
 		924E6BAED90F882F88162F67 /* ContainerListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContainerListView.swift; sourceTree = "<group>"; };
 		961608DDC7B1B0C0D4388BB6 /* ContainerDetail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContainerDetail.swift; sourceTree = "<group>"; };
 		9F1AEF308C0AC6863E5E9C98 /* VolumeListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VolumeListView.swift; sourceTree = "<group>"; };
-		A1F0C1D2E3F4051627384951 /* colimaui */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = colimaui; sourceTree = "<group>"; };
+		9F6A85D69C7D5D7560EE22E2 /* ColimaUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ColimaUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		AC2C78FD9A5AB2A75D7E5276 /* Container.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Container.swift; sourceTree = "<group>"; };
 		B110B5E9F4EEED166CD9B50C /* ShellExecutor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShellExecutor.swift; sourceTree = "<group>"; };
 		C3911EFA73C0E9546896E0E8 /* CreateProfileSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateProfileSheet.swift; sourceTree = "<group>"; };
+		C71A681B6C0DEF05D130BFF3 /* LocalDomainDefaultsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalDomainDefaultsTests.swift; sourceTree = "<group>"; };
 		C9577B6E97AD696B6CCFA9B8 /* ContainerLogsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContainerLogsView.swift; sourceTree = "<group>"; };
 		C9D0D31DEF711C0DC0A4787B /* ColimaUI.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ColimaUI.entitlements; sourceTree = "<group>"; };
+		CA1BA9FA5F56336651084096 /* LocalDomainDefaults.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalDomainDefaults.swift; sourceTree = "<group>"; };
+		CA7434C9F8D31BF76FC6B36D /* LocalDomainsAutopilotPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalDomainsAutopilotPolicyTests.swift; sourceTree = "<group>"; };
 		CC5131E24F21B9ADFA7AA07E /* DependencyChecker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DependencyChecker.swift; sourceTree = "<group>"; };
 		CCEF5F2B313F6030BA351ED5 /* ColimaUIApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColimaUIApp.swift; sourceTree = "<group>"; };
 		CFD2937515617112CD899828 /* CleanupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CleanupView.swift; sourceTree = "<group>"; };
+		E050B3C8C66DC0F59CD67309 /* colimaui */ = {isa = PBXFileReference; path = colimaui; sourceTree = "<group>"; };
 		EC1DEF143C74878241FE9E5C /* ToastView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastView.swift; sourceTree = "<group>"; };
 		F10837C7E1BF2640AA8F9E10 /* DockerImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockerImage.swift; sourceTree = "<group>"; };
 		FBC22FA2447EA579A9527196 /* ContainerRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContainerRowView.swift; sourceTree = "<group>"; };
@@ -78,6 +101,7 @@
 			isa = PBXGroup;
 			children = (
 				DF42F11C68455B81C2BDBE13 /* ColimaUI */,
+				2D0300CB9A24542E19ECB663 /* ColimaUITests */,
 				7D4F50CFFDC801E5817AAD86 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -96,6 +120,16 @@
 				9F1AEF308C0AC6863E5E9C98 /* VolumeListView.swift */,
 			);
 			path = Volumes;
+			sourceTree = "<group>";
+		};
+		2D0300CB9A24542E19ECB663 /* ColimaUITests */ = {
+			isa = PBXGroup;
+			children = (
+				C71A681B6C0DEF05D130BFF3 /* LocalDomainDefaultsTests.swift */,
+				CA7434C9F8D31BF76FC6B36D /* LocalDomainsAutopilotPolicyTests.swift */,
+				4B921A7ED369A1A983DBFDBA /* LocalDomainsIntegrationTests.swift */,
+			);
+			path = ColimaUITests;
 			sourceTree = "<group>";
 		};
 		2F5F4BE9BD81218E683F47E6 /* Views */ = {
@@ -144,6 +178,7 @@
 			isa = PBXGroup;
 			children = (
 				52D88447441225F2E1D819D0 /* ColimaUI.app */,
+				9F6A85D69C7D5D7560EE22E2 /* ColimaUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -154,6 +189,9 @@
 				76FC7F0ABFFA7A77AFA0DD94 /* ColimaService.swift */,
 				CC5131E24F21B9ADFA7AA07E /* DependencyChecker.swift */,
 				46FDCA95D401A35E8A40DD0A /* DockerService.swift */,
+				CA1BA9FA5F56336651084096 /* LocalDomainDefaults.swift */,
+				8E2E815FBFE463196EF12247 /* LocalDomainsAutopilot.swift */,
+				56CC92768614DCE1CF1B1A1C /* LocalDomainService.swift */,
 				B110B5E9F4EEED166CD9B50C /* ShellExecutor.swift */,
 			);
 			path = Services;
@@ -163,7 +201,7 @@
 			isa = PBXGroup;
 			children = (
 				33AF1C5869327F9B46EFA08F /* Assets.xcassets */,
-				A1F0C1D2E3F4051627384951 /* colimaui */,
+				E050B3C8C66DC0F59CD67309 /* colimaui */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -237,6 +275,24 @@
 			productReference = 52D88447441225F2E1D819D0 /* ColimaUI.app */;
 			productType = "com.apple.product-type.application";
 		};
+		D9691406D670561F396F75D1 /* ColimaUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BA352A30EEC217CBF2EEC9F8 /* Build configuration list for PBXNativeTarget "ColimaUITests" */;
+			buildPhases = (
+				78C0EE39299246ADFBEF287D /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				CFF90904CF3D36B9D3FA9DDD /* PBXTargetDependency */,
+			);
+			name = ColimaUITests;
+			packageProductDependencies = (
+			);
+			productName = ColimaUITests;
+			productReference = 9F6A85D69C7D5D7560EE22E2 /* ColimaUITests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -267,6 +323,7 @@
 			projectRoot = "";
 			targets = (
 				81F1E256B40A8F268DB1A6F2 /* ColimaUI */,
+				D9691406D670561F396F75D1 /* ColimaUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -277,7 +334,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A5B2766E9C1F06C2AC6903A7 /* Assets.xcassets in Resources */,
-				A1F0C1D2E3F4051627384950 /* colimaui in Resources */,
+				F1E2784B9A0C4C4585A89D11 /* colimaui in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -307,6 +364,9 @@
 				848D7F4E205646D8C406C3C2 /* DockerService.swift in Sources */,
 				9060E60621CD7034D05A660C /* DockerVolume.swift in Sources */,
 				86E5C99A8CBDB002B789554E /* ImageListView.swift in Sources */,
+				684B77BB555FAC0E851482B4 /* LocalDomainDefaults.swift in Sources */,
+				B07EAAA6E762AE92586C50E4 /* LocalDomainService.swift in Sources */,
+				B1DBE116BB0BBC5669A4DB21 /* LocalDomainsAutopilot.swift in Sources */,
 				E9B909D8B88A151B12C114CA /* MainView.swift in Sources */,
 				3E248BAB5F7B2E0648109CEF /* OnboardingView.swift in Sources */,
 				83F4222F1A89E7625B1C7162 /* SettingsView.swift in Sources */,
@@ -318,7 +378,25 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		78C0EE39299246ADFBEF287D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				30FA55841C2D89C4D1810DC4 /* LocalDomainDefaultsTests.swift in Sources */,
+				92E03416A53AD951E16B1D42 /* LocalDomainsAutopilotPolicyTests.swift in Sources */,
+				1A3775DD6AD842F6C2DDE3C0 /* LocalDomainsIntegrationTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		CFF90904CF3D36B9D3FA9DDD /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 81F1E256B40A8F268DB1A6F2 /* ColimaUI */;
+			targetProxy = F95A5593799CC184BE480EA2 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		315D3875C92CB883FCD57FA2 /* Debug */ = {
@@ -426,6 +504,23 @@
 			};
 			name = Release;
 		};
+		7954A4EAD07FC289E423BC2F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.colimaui.app.tests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ColimaUI.app/Contents/MacOS/ColimaUI";
+			};
+			name = Release;
+		};
 		D5F60D6E4169CDA78EA5BDC2 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -482,6 +577,23 @@
 			};
 			name = Release;
 		};
+		FA25F5BF4CDC9B32A2A33048 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.colimaui.app.tests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ColimaUI.app/Contents/MacOS/ColimaUI";
+			};
+			name = Debug;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -490,6 +602,15 @@
 			buildConfigurations = (
 				315D3875C92CB883FCD57FA2 /* Debug */,
 				4FCCD787DC050890B6109E4F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		BA352A30EEC217CBF2EEC9F8 /* Build configuration list for PBXNativeTarget "ColimaUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				FA25F5BF4CDC9B32A2A33048 /* Debug */,
+				7954A4EAD07FC289E423BC2F /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

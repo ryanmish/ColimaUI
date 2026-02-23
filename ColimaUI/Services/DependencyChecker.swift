@@ -12,9 +12,12 @@ class DependencyChecker {
     var hasColima = false
     var hasDocker = false
     var hasColimaUICLI = false
+    var domainSetupHealthy = false
     var isChecking = false
     var isInstalling = false
     var installProgress: String = ""
+    var lastFailedStep: String = ""
+    var lastFailureDetail: String = ""
 
     private let shell = ShellExecutor.shared
 
@@ -22,6 +25,10 @@ class DependencyChecker {
 
     var allDependenciesMet: Bool {
         hasColima && hasDocker
+    }
+
+    var isFullyReady: Bool {
+        allDependenciesMet && hasColimaUICLI && domainSetupHealthy
     }
 
     var missingDependencies: [String] {
@@ -45,9 +52,12 @@ class DependencyChecker {
         hasHomebrew = await checkCommandExists("brew")
         hasColima = await checkCommandExists("colima")
         hasDocker = await checkCommandExists("docker")
-        let hasSystemColimaUICLI = await checkCommandExists("colimaui")
-        let hasUserColimaUICLI = await checkUserLocalCommandExists("colimaui")
-        hasColimaUICLI = hasSystemColimaUICLI || hasUserColimaUICLI
+        hasColimaUICLI = await LocalDomainService.shared.hasCompatibleCLI()
+        if hasColima && hasDocker && hasColimaUICLI {
+            domainSetupHealthy = await isDomainSetupHealthy(suffix: defaultDomainSuffix())
+        } else {
+            domainSetupHealthy = false
+        }
 
         isChecking = false
     }
@@ -110,13 +120,12 @@ class DependencyChecker {
             _ = try await shell.run("colima start")
 
             installProgress = "Installing colimaui domain CLI..."
-            let cliInstalled = await installColimaUICLI()
-            let hasSystemColimaUICLI = await checkCommandExists("colimaui")
-            let hasUserColimaUICLI = await checkUserLocalCommandExists("colimaui")
+            _ = await installColimaUICLI()
+            let compatibleColimaUICLI = await LocalDomainService.shared.hasCompatibleCLI()
 
             hasColima = true
             hasDocker = true
-            hasColimaUICLI = cliInstalled || hasSystemColimaUICLI || hasUserColimaUICLI
+            hasColimaUICLI = compatibleColimaUICLI
             isInstalling = false
             installProgress = hasColimaUICLI
                 ? "Installation complete!"
@@ -156,10 +165,8 @@ class DependencyChecker {
         isInstalling = true
         installProgress = "Installing colimaui domain CLI..."
 
-        let installed = await installColimaUICLI()
-        let hasSystemColimaUICLI = await checkCommandExists("colimaui")
-        let hasUserColimaUICLI = await checkUserLocalCommandExists("colimaui")
-        hasColimaUICLI = installed || hasSystemColimaUICLI || hasUserColimaUICLI
+        _ = await installColimaUICLI()
+        hasColimaUICLI = await LocalDomainService.shared.hasCompatibleCLI()
 
         isInstalling = false
         if hasColimaUICLI {
@@ -169,6 +176,99 @@ class DependencyChecker {
 
         installProgress = "Failed to install colimaui CLI"
         return false
+    }
+
+    /// One-step onboarding flow: install runtime + CLI + domain setup/check.
+    func installAndConfigureAll(domainSuffix: String) async -> Bool {
+        _ = domainSuffix
+        let suffix = LocalDomainDefaults.suffix
+
+        isInstalling = true
+        lastFailedStep = ""
+        lastFailureDetail = ""
+        installProgress = "Preparing setup..."
+
+        defer { isInstalling = false }
+
+        if !hasHomebrew {
+            installProgress = "Installing Homebrew..."
+            guard await installHomebrewCore() else {
+                lastFailedStep = "Install Homebrew"
+                if lastFailureDetail.isEmpty { lastFailureDetail = installProgress }
+                return false
+            }
+            hasHomebrew = true
+        }
+
+        installProgress = "Installing Colima and Docker CLI..."
+        do {
+            _ = try await shell.run("brew install colima docker")
+            hasColima = true
+            hasDocker = true
+        } catch {
+            lastFailedStep = "Install Colima and Docker CLI"
+            lastFailureDetail = error.localizedDescription
+            installProgress = "Failed to install Colima/Docker."
+            return false
+        }
+
+        installProgress = "Starting Colima..."
+        do {
+            if (try? await shell.run("colima status >/dev/null 2>&1")) == nil {
+                _ = try await shell.run("colima start")
+            }
+        } catch {
+            lastFailedStep = "Start Colima"
+            lastFailureDetail = error.localizedDescription
+            installProgress = "Failed to start Colima."
+            return false
+        }
+
+        installProgress = "Installing colimaui CLI..."
+        _ = await installColimaUICLI()
+        hasColimaUICLI = await LocalDomainService.shared.hasCompatibleCLI()
+        guard hasColimaUICLI else {
+            lastFailedStep = "Install colimaui CLI"
+            lastFailureDetail = "Unable to install colimaui CLI into system or user bin directories."
+            installProgress = "Failed to install colimaui CLI."
+            return false
+        }
+
+        installProgress = "Configuring local domains (.\(suffix))..."
+        do {
+            let checks = try await LocalDomainService.shared.setupAndCheck(suffix: suffix)
+            let allPassing = checks.allSatisfy(\.isPassing)
+            domainSetupHealthy = allPassing
+            if !allPassing {
+                let failedTitles = checks.filter { !$0.isPassing }.map(\.title).joined(separator: ", ")
+                lastFailedStep = "Local domain setup"
+                lastFailureDetail = failedTitles.isEmpty ? "Setup checks failed." : "Failed checks: \(failedTitles)"
+                installProgress = "Local domain setup needs attention."
+                return false
+            }
+        } catch {
+            lastFailedStep = "Local domain setup"
+            lastFailureDetail = error.localizedDescription
+            installProgress = "Failed to configure local domains."
+            return false
+        }
+
+        installProgress = "Verifying local domains..."
+        let healthy = await isDomainSetupHealthy(suffix: suffix)
+        domainSetupHealthy = healthy
+        guard healthy else {
+            lastFailedStep = "Verify local domains"
+            lastFailureDetail = "Domain checks did not pass after setup."
+            installProgress = "Local domain verification failed."
+            return false
+        }
+
+        UserDefaults.standard.set(true, forKey: "enableContainerDomains")
+        UserDefaults.standard.set(suffix, forKey: "containerDomainSuffix")
+
+        installProgress = "Setup complete."
+        await checkAll()
+        return true
     }
 
     /// Open Homebrew website
@@ -185,6 +285,13 @@ class DependencyChecker {
         }
     }
 
+    /// Open ColimaUI GitHub
+    func openColimaUIWebsite() {
+        if let url = URL(string: "https://github.com/ryanmish/ColimaUI") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
     private func installColimaUICLI() async -> Bool {
         guard let sourcePath = resolveColimaUIScriptPath() else {
             return false
@@ -194,34 +301,51 @@ class DependencyChecker {
         let userTargetDir = "\(NSHomeDirectory())/.local/bin"
         let userTarget = "\(userTargetDir)/colimaui"
         let escapedSource = Self.shellEscape(sourcePath)
+        var targets: [String] = []
 
-        for binDir in systemBinDirs {
-            let target = "\(binDir)/colimaui"
+        if let activePath = await resolveActiveColimaUICLIPath() {
+            targets.append(activePath)
+        }
+
+        if let preferredSystemBin = systemBinDirs.first {
+            targets.append("\(preferredSystemBin)/colimaui")
+        }
+
+        targets.append(userTarget)
+
+        var seen = Set<String>()
+        var installedAny = false
+        let homePrefix = NSHomeDirectory() + "/"
+
+        for target in targets where seen.insert(target).inserted {
             if await installColimaUIScript(
                 escapedSource: escapedSource,
                 target: target,
                 privileged: false
             ) {
-                return true
+                installedAny = true
+                continue
             }
-        }
 
-        if let privilegedTarget = systemBinDirs.first {
+            if target.hasPrefix(homePrefix) {
+                continue
+            }
+
             if await installColimaUIScript(
                 escapedSource: escapedSource,
-                target: "\(privilegedTarget)/colimaui",
+                target: target,
                 privileged: true,
-                prompt: "ColimaUI needs permission to install the colimaui command-line helper for local domain management."
+                prompt: "ColimaUI needs permission to install or update the colimaui command-line helper for local domain management."
             ) {
-                return true
+                installedAny = true
             }
         }
 
-        if (try? await shell.run("mkdir -p '\(userTargetDir)' && install -m 755 \(escapedSource) '\(userTarget)'")) != nil {
-            return true
+        if !installedAny {
+            return false
         }
 
-        return false
+        return await LocalDomainService.shared.hasCompatibleCLI()
     }
 
     private func candidateSystemBinDirectories() async -> [String] {
@@ -265,6 +389,15 @@ class DependencyChecker {
         return (try? await shell.run(command)) != nil
     }
 
+    private func resolveActiveColimaUICLIPath() async -> String? {
+        guard let resolved = try? await shell.run("command -v colimaui 2>/dev/null") else {
+            return nil
+        }
+        let path = resolved.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard path.hasPrefix("/") else { return nil }
+        return path
+    }
+
     private func resolveColimaUIScriptPath() -> String? {
         let fm = FileManager.default
         var candidates: [String] = []
@@ -291,6 +424,37 @@ class DependencyChecker {
             }
         }
         return nil
+    }
+
+    private func installHomebrewCore() async -> Bool {
+        do {
+            let script = """
+            /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+            """
+            _ = try await shell.run(script)
+            return true
+        } catch {
+            lastFailureDetail = error.localizedDescription
+            return false
+        }
+    }
+
+    private func normalizedDomainSuffix(_ value: String) -> String {
+        value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .trimmingCharacters(in: CharacterSet(charactersIn: "."))
+    }
+
+    private func defaultDomainSuffix() -> String {
+        LocalDomainDefaults.suffix
+    }
+
+    private func isDomainSetupHealthy(suffix: String) async -> Bool {
+        let normalized = normalizedDomainSuffix(suffix)
+        guard !normalized.isEmpty, hasColimaUICLI else { return false }
+        let checks = await LocalDomainService.shared.checkSetup(suffix: normalized)
+        return !checks.isEmpty && checks.allSatisfy(\.isPassing)
     }
 
     private static func shellEscape(_ value: String) -> String {

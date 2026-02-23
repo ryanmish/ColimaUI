@@ -4,12 +4,13 @@ set -euo pipefail
 PATH="/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/local/sbin:$PATH"
 
 SCRIPT_NAME="colimaui"
-CLI_VERSION="1.0.0"
+CLI_VERSION="1.1.13"
 DNS_PORT="53535"
 MANAGED_DNSMASQ_CONFIG="colimaui.conf"
-SUDO_READY="0"
+MKCERT_CAROOT="${HOME}/Library/Application Support/ColimaUI/mkcert-v2"
 CERT_DIR="${HOME}/Library/Application Support/ColimaUI/proxy/certs"
 DYNAMIC_DIR="${HOME}/Library/Application Support/ColimaUI/proxy/dynamic"
+LOCK_DIR=""
 
 log() {
   printf '%s\n' "$*"
@@ -34,14 +35,15 @@ ColimaUI CLI
 
 Usage:
   colimaui --version
-  colimaui domains setup [--suffix <suffix>]
-  colimaui domains check [--suffix <suffix>]
-  colimaui domains sync [--suffix <suffix>]
-  colimaui domains unsetup [--suffix <suffix>] [--purge-packages]
+  colimaui domains setup
+  colimaui domains check
+  colimaui domains sync
+  colimaui domains urls
+  colimaui domains unsetup [--purge-packages]
 
 Notes:
-  - Suffix defaults to ColimaUI setting (containerDomainSuffix), then "local".
-  - setup/unsetup may request sudo once for system resolver and trust changes.
+  - Domain suffix is fixed to "dev.local".
+  - setup/unsetup may request macOS admin credentials for resolver and DNS changes.
 EOF
 }
 
@@ -52,13 +54,7 @@ normalize_suffix() {
 }
 
 default_suffix() {
-  local s
-  s="$(defaults read com.colimaui.app containerDomainSuffix 2>/dev/null || true)"
-  s="$(normalize_suffix "$s")"
-  if [[ -z "$s" ]]; then
-    s="local"
-  fi
-  printf '%s' "$s"
+  printf '%s' "dev.local"
 }
 
 brew_prefix() {
@@ -73,20 +69,72 @@ brew_prefix() {
   fi
 }
 
-run_sudo_once() {
-  if [[ "$SUDO_READY" == "1" ]]; then
-    return
-  fi
-  sudo -v
-  SUDO_READY="1"
-}
-
 command_ok() {
   local cmd="$1"
   if eval "$cmd" >/dev/null 2>&1; then
     return 0
   fi
   return 1
+}
+
+shell_quote() {
+  local value="${1:-}"
+  printf "'%s'" "${value//\'/\'\\\'\'}"
+}
+
+system_curl() {
+  local curl_bin="/usr/bin/curl"
+  if [[ ! -x "$curl_bin" ]]; then
+    curl_bin="$(command -v curl || true)"
+  fi
+  [[ -n "$curl_bin" ]] || return 127
+  "$curl_bin" "$@"
+}
+
+run_admin_command() {
+  local script="${1:-}"
+  local prompt="${2:-ColimaUI needs administrator permission to configure local domains.}"
+  local encoded=""
+
+  encoded="$(printf '%s' "$script" | /usr/bin/base64 | tr -d '\n')"
+  [[ -n "$encoded" ]] || die "Failed to prepare admin command."
+
+  /usr/bin/osascript >/dev/null <<EOF
+set payload to "$encoded"
+do shell script "echo " & quoted form of payload & " | /usr/bin/base64 -D | /bin/zsh -l" with prompt "$prompt" with administrator privileges
+EOF
+}
+
+acquire_operation_lock() {
+  local lock_path="${TMPDIR:-/tmp}/colimaui-domains.lock"
+  local attempts=0
+
+  while ! mkdir "$lock_path" >/dev/null 2>&1; do
+    attempts=$((attempts + 1))
+    if (( attempts >= 80 )); then
+      die "Another local-domain operation is running. Try again in a few seconds."
+    fi
+    sleep 0.25
+  done
+
+  LOCK_DIR="$lock_path"
+}
+
+release_operation_lock() {
+  if [[ -n "${LOCK_DIR:-}" ]]; then
+    rmdir "$LOCK_DIR" >/dev/null 2>&1 || true
+    LOCK_DIR=""
+  fi
+}
+
+with_operation_lock() {
+  acquire_operation_lock
+  trap 'release_operation_lock' EXIT INT TERM
+  "$@"
+  local exit_code=$?
+  trap - EXIT INT TERM
+  release_operation_lock
+  return $exit_code
 }
 
 dnsmasq_running() {
@@ -238,8 +286,8 @@ attach_proxy_to_networks() {
 
   local networks=""
   networks="$(docker ps -q | while read -r id; do
-    docker inspect --format '{{range $name, $_ := .NetworkSettings.Networks}}{{$name}} {{end}}' "$id" 2>/dev/null
-  done | tr ' ' '\n' | sed '/^$/d' | sort -u)"
+    docker inspect --format '{{range $name, $_ := .NetworkSettings.Networks}}{{$name}} {{end}}' "$id" 2>/dev/null || true
+  done | tr ' ' '\n' | sed '/^$/d' | sort -u || true)"
 
   local network=""
   for network in $networks; do
@@ -319,7 +367,7 @@ sync_routes() {
     port="$(preferred_http_port "${ports:-}" "${labels:-}")"
     [[ -z "$port" ]] && continue
 
-    ip="$(docker inspect --format '{{range .NetworkSettings.Networks}}{{if .IPAddress}}{{.IPAddress}} {{end}}{{end}}' "$id" 2>/dev/null | awk '{print $1}')"
+    ip="$(docker inspect --format '{{range .NetworkSettings.Networks}}{{if .IPAddress}}{{.IPAddress}} {{end}}{{end}}' "$id" 2>/dev/null | awk '{print $1}' || true)"
     [[ -z "$ip" ]] && continue
 
     short="$(printf '%s' "$id" | tr -cd '[:alnum:]' | cut -c1-12)"
@@ -400,11 +448,70 @@ sync_routes() {
   rm -f "$routers_file" "$services_file" "$route_keys_file" "$service_keys_file"
 }
 
+list_urls() {
+  local suffix="dev.local"
+  local tmp
+  tmp="$(mktemp)"
+
+  echo "https://index.${suffix}" >> "$tmp"
+
+  docker_reachable || die "Docker API unreachable"
+
+  local line id name ports labels port domains_file compose_service compose_project container_label custom_domains d normalized full
+  while IFS=$'\t' read -r id name ports labels; do
+    [[ -z "$id" ]] && continue
+    [[ "$name" == "colimaui-proxy" ]] && continue
+
+    port="$(preferred_http_port "${ports:-}" "${labels:-}")"
+    [[ -z "$port" ]] && continue
+
+    domains_file="$(mktemp)"
+
+    compose_service="$(label_value "${labels:-}" "com.docker.compose.service" || true)"
+    compose_project="$(label_value "${labels:-}" "com.docker.compose.project" || true)"
+    if [[ -n "$compose_service" && -n "$compose_project" ]]; then
+      compose_service="$(normalize_domain_label "$compose_service")"
+      compose_project="$(normalize_domain_label "$compose_project")"
+      if [[ -n "$compose_service" && -n "$compose_project" ]]; then
+        echo "${compose_service}.${compose_project}.${suffix}" >> "$domains_file"
+      fi
+    fi
+
+    container_label="$(normalize_domain_label "$name")"
+    if [[ -n "$container_label" ]]; then
+      echo "${container_label}.${suffix}" >> "$domains_file"
+    fi
+
+    custom_domains="$(label_value "${labels:-}" "dev.colimaui.domains" || true)"
+    if [[ -n "$custom_domains" ]]; then
+      IFS=',' read -r -a custom_parts <<< "$custom_domains"
+      for d in "${custom_parts[@]}"; do
+        normalized="$(normalize_full_domain "$d" || true)"
+        [[ -n "$normalized" ]] && echo "$normalized" >> "$domains_file"
+      done
+    fi
+
+    if [[ -s "$domains_file" ]]; then
+      while IFS= read -r full; do
+        [[ -z "$full" ]] && continue
+        [[ "$full" == "*."* ]] && continue
+        echo "https://${full}" >> "$tmp"
+      done < <(sort -u "$domains_file")
+    fi
+
+    rm -f "$domains_file"
+  done < <(docker ps --format $'{{.ID}}\t{{.Names}}\t{{.Ports}}\t{{.Labels}}')
+
+  sort -u "$tmp"
+  rm -f "$tmp"
+}
+
 check_status() {
   local suffix="$1"
   local fail_count=0
   local ok detail
   local brew_pfx managed_conf resolver_file cert_file key_file
+  local index_reachable=0
   local local_suffix_reserved="0"
 
   brew_pfx="$(brew_prefix)"
@@ -447,15 +554,20 @@ check_status() {
   if [[ -f "$resolver_file" ]] && grep -Fqx "nameserver 127.0.0.1" "$resolver_file" && grep -Fqx "port ${DNS_PORT}" "$resolver_file"; then ok=1; detail="$resolver_file configured"; else ok=0; detail="Resolver missing or invalid"; fi
   print_check "macOS resolver" "$ok" "$detail"
 
-  if [[ "$local_suffix_reserved" == "1" ]]; then
-    ok=0
-    detail=".local is reserved by macOS Bonjour; wildcard lookups may bypass dnsmasq"
-  elif dnsmasq_running && command_ok "dscacheutil -q host -a name colimaui-check.${suffix} | grep -q 'ip_address: 127.0.0.1'"; then
+  if dnsmasq_running && command_ok "dscacheutil -q host -a name colimaui-check.${suffix} | grep -q 'ip_address: 127.0.0.1'"; then
     ok=1
-    detail="Hostnames resolve to 127.0.0.1"
+    if [[ "$local_suffix_reserved" == "1" ]]; then
+      detail="Hostnames resolve to 127.0.0.1 (.local may still conflict with Bonjour)"
+    else
+      detail="Hostnames resolve to 127.0.0.1"
+    fi
   else
     ok=0
-    detail="Wildcard lookup not resolving"
+    if [[ "$local_suffix_reserved" == "1" ]]; then
+      detail="Wildcard lookup not resolving (.local may be intercepted by Bonjour)"
+    else
+      detail="Wildcard lookup not resolving"
+    fi
   fi
   print_check "Wildcard resolution" "$ok" "$detail"
 
@@ -468,17 +580,36 @@ check_status() {
   if [[ -f "$cert_file" && -f "$key_file" ]]; then ok=1; detail="Wildcard cert generated"; else ok=0; detail="Certificate missing"; fi
   print_check "TLS certificate" "$ok" "$detail"
 
-  if [[ "$local_suffix_reserved" == "1" ]]; then
-    ok=0
-    detail="index.local is unreliable on macOS because .local is Bonjour-reserved"
-  elif command_ok "curl -sS --connect-timeout 2 --max-time 4 -o /dev/null https://index.${suffix}"; then
+  if system_curl -ksS --connect-timeout 2 --max-time 4 -o /dev/null "https://index.${suffix}"; then
+    index_reachable=1
     ok=1
-    detail="Trusted HTTPS reachable"
+    if [[ "$local_suffix_reserved" == "1" ]]; then
+      detail="HTTPS endpoint reachable (.local may still conflict on some Macs)"
+    else
+      detail="HTTPS endpoint reachable"
+    fi
   else
     ok=0
-    detail="Index unreachable or TLS untrusted"
+    if [[ "$local_suffix_reserved" == "1" ]]; then
+      detail="Index unreachable or TLS untrusted (.local may be intercepted by Bonjour)"
+    else
+      detail="Index unreachable or TLS untrusted"
+    fi
   fi
   print_check "Domain index" "$ok" "$detail"
+
+  if system_curl -sS --connect-timeout 2 --max-time 4 -o /dev/null "https://index.${suffix}"; then
+    ok=1
+    detail="Certificate chain trusted"
+  else
+    ok=0
+    if [[ "$index_reachable" == "1" ]]; then
+      detail="Reachable but certificate is not trusted"
+    else
+      detail="Not trusted (or unreachable)"
+    fi
+  fi
+  print_check "TLS trust" "$ok" "$detail"
 
   if (( fail_count > 0 )); then
     return 1
@@ -488,19 +619,19 @@ check_status() {
 
 setup_domains() {
   local suffix="$1"
-  local brew_pfx managed_dir managed_conf resolver_file caroot
+  setup_prepare_domains "$suffix"
+  setup_apply_privileged "$suffix"
+  setup_finalize_domains "$suffix"
+}
+
+setup_prepare_domains() {
+  local suffix="$1"
 
   command -v brew >/dev/null 2>&1 || die "Homebrew is required"
 
   if [[ "$suffix" == "local" ]]; then
-    warn ".local is reserved by macOS Bonjour. For wildcard local domains, use .colima, .mish, or .test."
+    warn ".local is reserved by macOS Bonjour. For wildcard local domains, use .dev.local, .colima, .mish, or .test."
   fi
-
-  brew_pfx="$(brew_prefix)"
-  managed_dir="${brew_pfx}/etc/dnsmasq.d"
-  managed_conf="${managed_dir}/${MANAGED_DNSMASQ_CONFIG}"
-  resolver_file="/etc/resolver/${suffix}"
-  caroot="${HOME}/Library/Application Support/mkcert"
 
   CERT_DIR="${HOME}/Library/Application Support/ColimaUI/proxy/certs"
   DYNAMIC_DIR="${HOME}/Library/Application Support/ColimaUI/proxy/dynamic"
@@ -508,38 +639,118 @@ setup_domains() {
   log "Installing dependencies (dnsmasq, mkcert)..."
   command_ok "brew list dnsmasq >/dev/null 2>&1" || brew install dnsmasq
   command_ok "brew list mkcert >/dev/null 2>&1" || brew install mkcert
+}
+
+setup_apply_privileged() {
+  local suffix="$1"
+  local brew_pfx managed_dir managed_conf dnsmasq_conf resolver_file caroot app_support_root
+  local owner_user owner_group owner_ref
+  local q_managed_dir q_managed_conf q_dnsmasq_conf q_resolver_file q_caroot q_app_support_root q_owner_ref
+  local admin_script=""
+
+  brew_pfx="$(brew_prefix)"
+  managed_dir="${brew_pfx}/etc/dnsmasq.d"
+  managed_conf="${managed_dir}/${MANAGED_DNSMASQ_CONFIG}"
+  dnsmasq_conf="${brew_pfx}/etc/dnsmasq.conf"
+  resolver_file="/etc/resolver/${suffix}"
+  caroot="${MKCERT_CAROOT}"
+  app_support_root="$(dirname "$caroot")"
 
   log "Applying privileged DNS/resolver/trust setup..."
-  run_sudo_once
-  sudo mkdir -p "$managed_dir" /etc/resolver "$caroot"
-  cat <<EOF | sudo tee "$managed_conf" >/dev/null
+  if (( EUID == 0 )); then
+    owner_user="${SUDO_USER:-}"
+    if [[ -z "$owner_user" || "$owner_user" == "root" ]]; then
+      owner_user="$(stat -f%Su /dev/console 2>/dev/null || true)"
+    fi
+  else
+    owner_user="$(id -un)"
+  fi
+  if [[ -z "$owner_user" || "$owner_user" == "root" ]]; then
+    owner_user="$(printf '%s' "$caroot" | sed -nE 's#^/Users/([^/]+)/.*#\1#p')"
+  fi
+  if [[ -z "$owner_user" || "$owner_user" == "root" ]]; then
+    owner_user="$(id -un)"
+  fi
+  owner_group="$(id -gn "$owner_user" 2>/dev/null || true)"
+  if [[ -n "$owner_group" ]]; then
+    owner_ref="${owner_user}:${owner_group}"
+  else
+    owner_ref="${owner_user}"
+  fi
+  q_managed_dir="$(shell_quote "$managed_dir")"
+  q_managed_conf="$(shell_quote "$managed_conf")"
+  q_dnsmasq_conf="$(shell_quote "$dnsmasq_conf")"
+  q_resolver_file="$(shell_quote "$resolver_file")"
+  q_caroot="$(shell_quote "$caroot")"
+  q_app_support_root="$(shell_quote "$app_support_root")"
+  q_owner_ref="$(shell_quote "$owner_ref")"
+
+  admin_script="$(cat <<EOF
+mkdir -p $q_managed_dir /etc/resolver $q_caroot $q_app_support_root
+cat > $q_managed_conf <<'CFG'
 # Managed by ColimaUI CLI
 listen-address=127.0.0.1
 bind-interfaces
 port=${DNS_PORT}
 address=/.${suffix}/127.0.0.1
-EOF
-  cat <<EOF | sudo tee "$resolver_file" >/dev/null
+CFG
+touch $q_dnsmasq_conf
+if ! grep -Fqx "conf-file=${managed_conf}" $q_dnsmasq_conf; then
+  printf '\n# Managed by ColimaUI CLI\nconf-file=%s\n' "${managed_conf}" >> $q_dnsmasq_conf
+fi
+cat > $q_resolver_file <<'RES'
 nameserver 127.0.0.1
 port ${DNS_PORT}
+RES
+chown -R $q_owner_ref $q_app_support_root >/dev/null 2>&1 || true
 EOF
-  sudo env "PATH=$PATH" "CAROOT=$caroot" mkcert -install >/dev/null 2>&1 || true
-  if [[ -f "${caroot}/rootCA.pem" ]]; then
-    sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain "${caroot}/rootCA.pem" >/dev/null 2>&1 || true
+)"
+  if (( EUID == 0 )); then
+    /bin/zsh -lc "$admin_script" >/dev/null 2>&1 || die "Privileged setup failed."
+  else
+    run_admin_command "$admin_script" "ColimaUI needs administrator permission to update DNS, resolver, and certificate trust for .${suffix} domains." || die "Privileged setup was cancelled or failed."
   fi
-  sudo chown -R "$USER" "$caroot" >/dev/null 2>&1 || true
+}
+
+setup_finalize_domains() {
+  local suffix="$1"
+  local caroot
+  local tries=0
+  local dnsmasq_service_snapshot=""
+  local launchctl_snapshot=""
+  local bootstrap_cert bootstrap_key bootstrap_error
+
+  caroot="${MKCERT_CAROOT}"
+
+  log "Preparing local CA..."
+  bootstrap_cert="$(mktemp)"
+  bootstrap_key="$(mktemp)"
+  if ! bootstrap_error="$(CAROOT="$caroot" mkcert -cert-file "$bootstrap_cert" -key-file "$bootstrap_key" localhost 2>&1 >/dev/null)"; then
+    rm -f "$bootstrap_cert" "$bootstrap_key"
+    die "mkcert CA bootstrap failed: ${bootstrap_error}"
+  fi
+  rm -f "$bootstrap_cert" "$bootstrap_key"
 
   log "Starting dnsmasq service..."
   brew services start dnsmasq >/dev/null 2>&1 || true
 
-  local tries=0
-  until dnsmasq_running || (( tries >= 20 )); do
+  until dnsmasq_running || (( tries >= 120 )); do
     tries=$((tries + 1))
-    sleep 0.2
+    sleep 0.25
   done
-  dnsmasq_running || warn "dnsmasq did not report running yet"
+  if ! dnsmasq_running; then
+    dnsmasq_service_snapshot="$(brew services list 2>/dev/null | awk 'NR==1 || /^dnsmasq[[:space:]]/')"
+    launchctl_snapshot="$({ launchctl print gui/$(id -u)/homebrew.mxcl.dnsmasq 2>/dev/null | awk -F'= ' '/state =|last exit code =/{gsub(/^[ \t]+|[ \t]+$/, \"\", $2); print $1 \": \" $2}'; } || true)"
+    die "dnsmasq service failed to start. ${dnsmasq_service_snapshot} ${launchctl_snapshot}"
+  fi
 
   mkdir -p "$CERT_DIR" "$DYNAMIC_DIR"
+
+  if [[ -f "${caroot}/rootCA.pem" ]]; then
+    if ! security add-trusted-cert -d -r trustRoot -k "${HOME}/Library/Keychains/login.keychain-db" "${caroot}/rootCA.pem" >/dev/null 2>&1; then
+      die "mkcert trust installation failed for ${caroot}/rootCA.pem"
+    fi
+  fi
 
   log "Generating wildcard certificate for .${suffix}..."
   CAROOT="$caroot" mkcert -cert-file "${CERT_DIR}/${suffix}.pem" -key-file "${CERT_DIR}/${suffix}-key.pem" "*.${suffix}" "${suffix}" "index.${suffix}" localhost 127.0.0.1 ::1 >/dev/null
@@ -562,12 +773,15 @@ EOF
 unsetup_domains() {
   local suffix="$1"
   local purge_packages="$2"
-  local brew_pfx managed_conf resolver_file caroot
+  local brew_pfx managed_conf dnsmasq_conf resolver_file caroot
+  local admin_script=""
+  local q_managed_conf q_dnsmasq_conf q_resolver_file
 
   brew_pfx="$(brew_prefix)"
   managed_conf="${brew_pfx}/etc/dnsmasq.d/${MANAGED_DNSMASQ_CONFIG}"
+  dnsmasq_conf="${brew_pfx}/etc/dnsmasq.conf"
   resolver_file="/etc/resolver/${suffix}"
-  caroot="${HOME}/Library/Application Support/mkcert"
+  caroot="${MKCERT_CAROOT}"
   CERT_DIR="${HOME}/Library/Application Support/ColimaUI/proxy/certs"
   DYNAMIC_DIR="${HOME}/Library/Application Support/ColimaUI/proxy/dynamic"
 
@@ -577,10 +791,24 @@ unsetup_domains() {
 
   command -v brew >/dev/null 2>&1 && brew services stop dnsmasq >/dev/null 2>&1 || true
 
-  run_sudo_once
-  sudo rm -f "$managed_conf" "$resolver_file" >/dev/null 2>&1 || true
+  q_managed_conf="$(shell_quote "$managed_conf")"
+  q_dnsmasq_conf="$(shell_quote "$dnsmasq_conf")"
+  q_resolver_file="$(shell_quote "$resolver_file")"
+  admin_script="rm -f $q_managed_conf $q_resolver_file >/dev/null 2>&1 || true
+if [[ -f $q_dnsmasq_conf ]]; then
+  tmp_file=\$(mktemp)
+  grep -Fvx \"conf-file=${managed_conf}\" $q_dnsmasq_conf > \"\$tmp_file\" || true
+  cat \"\$tmp_file\" > $q_dnsmasq_conf
+  rm -f \"\$tmp_file\"
+fi"
   if [[ "$suffix" != "colima" ]]; then
-    sudo rm -f /etc/resolver/colima >/dev/null 2>&1 || true
+    admin_script="${admin_script}
+rm -f /etc/resolver/colima >/dev/null 2>&1 || true"
+  fi
+  if (( EUID == 0 )); then
+    /bin/zsh -lc "$admin_script" >/dev/null 2>&1 || die "Privileged cleanup failed."
+  else
+    run_admin_command "$admin_script" "ColimaUI needs administrator permission to remove DNS and resolver settings for .${suffix} domains." || die "Privileged cleanup was cancelled or failed."
   fi
 
   if [[ "$purge_packages" == "1" ]]; then
@@ -591,6 +819,16 @@ unsetup_domains() {
 
   dscacheutil -flushcache >/dev/null 2>&1 || true
   log "Unsetup complete for .${suffix}"
+}
+
+sync_domains() {
+  local suffix="$1"
+  CERT_DIR="${HOME}/Library/Application Support/ColimaUI/proxy/certs"
+  DYNAMIC_DIR="${HOME}/Library/Application Support/ColimaUI/proxy/dynamic"
+  mkdir -p "$CERT_DIR" "$DYNAMIC_DIR"
+  write_tls_dynamic "$suffix" "$DYNAMIC_DIR"
+  sync_routes "$suffix" "$DYNAMIC_DIR"
+  log "Route sync complete for .${suffix}"
 }
 
 main() {
@@ -642,28 +880,35 @@ main() {
   done
 
   suffix="$(normalize_suffix "${suffix:-}")"
-  if [[ -z "$suffix" ]]; then
-    suffix="$(default_suffix)"
+  if [[ -n "$suffix" && "$suffix" != "dev.local" ]]; then
+    warn "Ignoring --suffix ${suffix}. ColimaUI domains are fixed to .dev.local."
   fi
-  [[ -n "$suffix" ]] || suffix="local"
+  suffix="dev.local"
 
   case "$action" in
     setup)
-      setup_domains "$suffix"
+      with_operation_lock setup_domains "$suffix"
+      ;;
+    setup-prep)
+      setup_prepare_domains "$suffix"
+      ;;
+    setup-apply)
+      setup_apply_privileged "$suffix"
+      ;;
+    setup-finalize)
+      setup_finalize_domains "$suffix"
       ;;
     check)
       check_status "$suffix"
       ;;
     sync)
-      CERT_DIR="${HOME}/Library/Application Support/ColimaUI/proxy/certs"
-      DYNAMIC_DIR="${HOME}/Library/Application Support/ColimaUI/proxy/dynamic"
-      mkdir -p "$CERT_DIR" "$DYNAMIC_DIR"
-      write_tls_dynamic "$suffix" "$DYNAMIC_DIR"
-      sync_routes "$suffix" "$DYNAMIC_DIR"
-      log "Route sync complete for .${suffix}"
+      with_operation_lock sync_domains "$suffix"
+      ;;
+    urls)
+      list_urls
       ;;
     unsetup)
-      unsetup_domains "$suffix" "$purge_packages"
+      with_operation_lock unsetup_domains "$suffix" "$purge_packages"
       ;;
     *)
       usage

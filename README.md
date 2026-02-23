@@ -41,23 +41,27 @@ ColimaUI can configure local domains end-to-end from Settings:
 - macOS resolver setup
 - automatic reverse proxy startup
 - automatic local TLS certs with `mkcert`
-- index page at `index.<suffix>`
+- index page at `index.dev.local`
+- background autopilot that reconciles and repairs domain routing
 
 See detailed workflow documentation: [`docs/local-development-workflow.md`](docs/local-development-workflow.md)
+Next planned UX/runtime behavior work: [`docs/next-quit-behavior.md`](docs/next-quit-behavior.md)
 
 Generated domains:
 
-- Compose service: `service.project.<suffix>`
-- Container fallback: `container-name.<suffix>`
+- Compose service: `service.project.dev.local`
+- Container fallback: `container-name.dev.local`
 
 Configure in **Settings -> Local Domains**:
 
 - Enable/disable local domain links
-- Set domain suffix (default: `.colima`)
+- Domain suffix is fixed to `.dev.local`
 - Prefer HTTPS for link opening
-- Automatic setup/check runs in-app (DNS, resolver, proxy, TLS, index health)
+- Autopilot keeps local-domain routing healthy in the background
+- Advanced setup/check tools remain available for manual recovery
+- CLI URL listing: `colimaui domains urls`
 - Supports custom domain labels: `dev.colimaui.domains`
-- Supports wildcard custom domains (for example `*.api.mish`)
+- Supports wildcard custom domains (for example `*.api.dev.local`)
 - Supports HTTP port override label: `dev.colimaui.http-port=8080`
 
 Example (custom domains + port override):
@@ -67,7 +71,7 @@ services:
   api:
     image: my-api
     labels:
-      - dev.colimaui.domains=api.colima,docs.colima
+      - dev.colimaui.domains=api.dev.local,docs.dev.local
       - dev.colimaui.http-port=3000
 ```
 

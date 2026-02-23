@@ -4,6 +4,8 @@ import SwiftUI
 struct OnboardingView: View {
     @Bindable var checker: DependencyChecker
     let onComplete: () -> Void
+    @AppStorage("enableContainerDomains") private var enableContainerDomains: Bool = true
+    @AppStorage("containerDomainSuffix") private var containerDomainSuffix: String = LocalDomainDefaults.suffix
 
     var body: some View {
         VStack(spacing: 0) {
@@ -36,29 +38,31 @@ struct OnboardingView: View {
                     DependencyRow(
                         name: "Homebrew",
                         description: "Package manager for macOS",
-                        isInstalled: checker.hasHomebrew,
-                        isRequired: !checker.hasHomebrew && !checker.hasColima
+                        isInstalled: checker.hasHomebrew
                     )
 
                     DependencyRow(
                         name: "Colima",
                         description: "Container runtime for macOS",
-                        isInstalled: checker.hasColima,
-                        isRequired: true
+                        isInstalled: checker.hasColima
                     )
 
                     DependencyRow(
                         name: "Docker CLI",
                         description: "Command-line interface for Docker",
-                        isInstalled: checker.hasDocker,
-                        isRequired: true
+                        isInstalled: checker.hasDocker
                     )
 
                     DependencyRow(
                         name: "colimaui CLI",
                         description: "Local domain helper (installed automatically)",
-                        isInstalled: checker.hasColimaUICLI,
-                        isRequired: false
+                        isInstalled: checker.hasColimaUICLI
+                    )
+
+                    DependencyRow(
+                        name: "Local domains",
+                        description: "DNS + resolver + proxy + TLS health checks",
+                        isInstalled: checker.domainSetupHealthy
                     )
                 }
             }
@@ -77,80 +81,60 @@ struct OnboardingView: View {
                         Text(checker.installProgress)
                             .font(.caption)
                             .foregroundColor(Theme.textSecondary)
+
+                        if !checker.lastFailedStep.isEmpty {
+                            Text("Failed at: \(checker.lastFailedStep)")
+                                .font(.caption2)
+                                .foregroundColor(Theme.statusWarning)
+                        }
                     }
                     .padding()
-                } else if checker.allDependenciesMet {
-                    VStack(spacing: 12) {
-                        if !checker.hasColimaUICLI {
-                            Button("Install colimaui CLI") {
-                                Task {
-                                    _ = await checker.installColimaUICLIOnly()
-                                    await checker.checkAll()
-                                }
-                            }
-                            .buttonStyle(PrimaryButtonStyle())
+                } else if checker.isFullyReady {
+                    Button {
+                        onComplete()
+                    } label: {
+                        HStack {
+                            Text("Get Started")
+                            Image(systemName: "arrow.right")
                         }
-
-                        Button {
-                            onComplete()
-                        } label: {
-                            HStack {
-                                Text("Get Started")
-                                Image(systemName: "arrow.right")
-                            }
-                            .frame(maxWidth: 200)
-                        }
-                        .buttonStyle(PrimaryButtonStyle())
+                        .frame(maxWidth: 220)
                     }
-                } else if !checker.hasHomebrew {
-                    VStack(spacing: 12) {
-                        Text("Homebrew is required to install Colima")
-                            .font(.caption)
-                            .foregroundColor(Theme.textMuted)
-
-                        HStack(spacing: 12) {
-                            Button("Install Homebrew") {
-                                Task { await checker.installHomebrew() }
-                            }
-                            .buttonStyle(PrimaryButtonStyle())
-
-                            Button("Open brew.sh") {
-                                checker.openHomebrewWebsite()
-                            }
-                            .buttonStyle(GlassButtonStyle())
-                        }
-                    }
+                    .buttonStyle(PrimaryButtonStyle())
                 } else {
-                    VStack(spacing: 12) {
-                        Button("Install Colima & Docker") {
-                            Task {
-                                if await checker.installColima() {
-                                    // Small delay then continue
-                                    try? await Task.sleep(for: .seconds(1))
-                                    onComplete()
-                                }
-                            }
+                    Button {
+                        Task { await runInstallAndConfigure() }
+                    } label: {
+                        HStack {
+                            Text(checker.lastFailedStep.isEmpty ? "Install and Configure Everything" : "Retry Setup")
+                            Image(systemName: "wrench.and.screwdriver")
                         }
-                        .buttonStyle(PrimaryButtonStyle())
-
-                        Button("Learn more about Colima") {
-                            checker.openColimaWebsite()
-                        }
-                        .buttonStyle(.plain)
-                        .font(.caption)
-                        .foregroundColor(Theme.accent)
+                        .frame(maxWidth: 300)
                     }
+                    .buttonStyle(PrimaryButtonStyle())
+
+                    if !checker.lastFailedStep.isEmpty {
+                        Text("Failed at: \(checker.lastFailedStep)")
+                            .font(.caption2)
+                            .foregroundColor(Theme.statusWarning)
+                    }
+
+                    if !checker.lastFailureDetail.isEmpty {
+                        Text(checker.lastFailureDetail)
+                            .font(.caption)
+                            .foregroundColor(Theme.statusWarning)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: 520)
+                    }
+
                 }
 
-                // Manual refresh
-                if !checker.isInstalling && !checker.allDependenciesMet {
-                    Button("I've already installed them") {
-                        Task { await checker.checkAll() }
+                if !checker.isInstalling {
+                    Button("Learn more about ColimaUI") {
+                        checker.openColimaUIWebsite()
                     }
                     .buttonStyle(.plain)
                     .font(.caption)
-                    .foregroundColor(Theme.textMuted)
-                    .padding(.top, 8)
+                    .foregroundColor(Theme.accent)
                 }
             }
             .padding(.bottom, 48)
@@ -161,13 +145,22 @@ struct OnboardingView: View {
             await checker.checkAll()
         }
     }
+
+    private func runInstallAndConfigure() async {
+        let suffix = LocalDomainDefaults.suffix
+        containerDomainSuffix = suffix
+
+        if await checker.installAndConfigureAll(domainSuffix: suffix) {
+            enableContainerDomains = true
+            onComplete()
+        }
+    }
 }
 
 struct DependencyRow: View {
     let name: String
     let description: String
     let isInstalled: Bool
-    let isRequired: Bool
 
     var body: some View {
         HStack(spacing: 12) {
@@ -176,21 +169,9 @@ struct DependencyRow: View {
                 .font(.system(size: 18))
 
             VStack(alignment: .leading, spacing: 2) {
-                HStack {
-                    Text(name)
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(Theme.textPrimary)
-
-                    if isRequired && !isInstalled {
-                        Text("Required")
-                            .font(.caption2)
-                            .foregroundColor(Theme.statusWarning)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Theme.statusWarning.opacity(0.15))
-                            .cornerRadius(4)
-                    }
-                }
+                Text(name)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(Theme.textPrimary)
 
                 Text(description)
                     .font(.caption)

@@ -33,3 +33,28 @@ targets:
         ENABLE_HARDENED_RUNTIME: NO
         CODE_SIGN_IDENTITY: "-"
         COMBINE_HIDPI_IMAGES: YES
+
+  ColimaUITests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: ColimaUITests
+    dependencies:
+      - target: ColimaUI
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.colimaui.app.tests
+        GENERATE_INFOPLIST_FILE: YES
+
+schemes:
+  ColimaUI:
+    build:
+      targets:
+        ColimaUI: all
+        ColimaUITests: [test]
+    run:
+      commandLineArguments:
+        -force-onboarding: true
+    test:
+      targets:
+        - ColimaUITests

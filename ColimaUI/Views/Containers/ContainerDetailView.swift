@@ -13,7 +13,6 @@ struct ContainerDetailView: View {
     @State private var showLogs = false
 
     @AppStorage("enableContainerDomains") private var enableContainerDomains: Bool = true
-    @AppStorage("containerDomainSuffix") private var containerDomainSuffix: String = "local"
     @AppStorage("preferHTTPSDomains") private var preferHTTPSDomains: Bool = false
 
     var body: some View {
@@ -190,7 +189,7 @@ struct ContainerDetailView: View {
     private func portsTab(_ detail: ContainerDetail) -> some View {
         let customDomains = Container.customDomains(from: detail.config.labels)
         let localDomains = enableContainerDomains
-            ? container.localDomains(domainSuffix: containerDomainSuffix, additionalDomains: customDomains)
+            ? container.localDomains(domainSuffix: LocalDomainDefaults.suffix, additionalDomains: customDomains)
             : []
 
         VStack(alignment: .leading, spacing: 16) {
