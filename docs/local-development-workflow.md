@@ -17,8 +17,9 @@ After:
 
 1. Open `Settings -> Local Domains`.
 2. Enable Local Domains.
-3. Keep the default suffix `.colima` or set your own (for example `.mish`).
-4. Wait for all setup checks to become healthy.
+3. Keep the default suffix `.local` or set your own (for example `.mish`).
+4. Click `One-Click Setup`.
+5. Wait for all setup checks to become healthy.
 
 Notes:
 - macOS can prompt for admin credentials to configure resolver and service-level networking.
@@ -97,3 +98,11 @@ In `Settings -> Local Domains`, verify:
 - `https://index.<suffix>` is reachable
 
 If one check fails, fix that check first.
+
+## Agent Memory
+
+For AI assistants and automation agents, copy the snippet in:
+
+- `docs/agent-memory-snippet.md`
+
+You can also copy this directly from the app in `Settings -> Docs + Agent Copy Pack -> Copy Agent Snippet`.

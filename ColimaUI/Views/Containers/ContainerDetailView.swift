@@ -13,7 +13,7 @@ struct ContainerDetailView: View {
     @State private var showLogs = false
 
     @AppStorage("enableContainerDomains") private var enableContainerDomains: Bool = true
-    @AppStorage("containerDomainSuffix") private var containerDomainSuffix: String = "colima"
+    @AppStorage("containerDomainSuffix") private var containerDomainSuffix: String = "local"
     @AppStorage("preferHTTPSDomains") private var preferHTTPSDomains: Bool = false
 
     var body: some View {

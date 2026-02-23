@@ -47,10 +47,10 @@ actor LocalDomainService {
             throw LocalDomainSetupError.invalidSuffix
         }
 
-        if let result = try await runColimaUICLIAction("setup", suffix: normalized),
-           let parsedChecks = parseCLICheckOutput(result.output),
-           parsedChecks.count >= 10 {
-            return parsedChecks
+        if let cliResult = try? await runColimaUICLIAction("setup", suffix: normalized),
+           let parsedChecks = parseCLICheckOutput(cliResult.output),
+           !parsedChecks.isEmpty {
+            return adjustedChecksForSuffix(parsedChecks, suffix: normalized)
         }
 
         var issues: [String] = []
@@ -107,7 +107,8 @@ actor LocalDomainService {
             throw LocalDomainSetupError.invalidSuffix
         }
 
-        if let _ = try await runColimaUICLIAction("unsetup", suffix: normalized) {
+        if let cliResult = try? await runColimaUICLIAction("unsetup", suffix: normalized),
+           cliResult.exitCode == 0 {
             return await checkSetup(suffix: normalized)
         }
 
@@ -177,7 +178,7 @@ actor LocalDomainService {
         if let cliResult = try? await runColimaUICLIAction("check", suffix: normalized),
            let parsedChecks = parseCLICheckOutput(cliResult.output),
            parsedChecks.count >= 10 {
-            return parsedChecks
+            return adjustedChecksForSuffix(parsedChecks, suffix: normalized)
         }
 
         let suffixEscaped = Self.shellEscape(normalized)
@@ -293,7 +294,7 @@ actor LocalDomainService {
         let certConfigured = flags["cert_configured"] == true
         let domainIndexReachable = flags["domain_index_reachable"] == true
 
-        return [
+        let checks = [
             LocalDomainCheck(
                 id: "brew",
                 title: "Homebrew",
@@ -367,6 +368,7 @@ actor LocalDomainService {
                 detail: domainIndexReachable ? "https://index.\(normalized) is reachable" : "Index domain is not reachable"
             )
         ]
+        return adjustedChecksForSuffix(checks, suffix: normalized)
     }
 
     private func setupDNS(for suffix: String) async throws {
@@ -394,26 +396,21 @@ actor LocalDomainService {
         let configBodyEscaped = Self.shellEscape(configBody)
 
         let hasManagedConfig = await commandSucceeds(
-            "test -f \(managedConfEscaped) && grep -Fqx 'listen-address=127.0.0.1' \(managedConfEscaped) && grep -Fqx 'bind-interfaces' \(managedConfEscaped) && grep -Fqx 'port \(dnsmasqPort)' \(managedConfEscaped) && grep -Fqx 'address=/.\(suffix)/127.0.0.1' \(managedConfEscaped)"
+            "test -f \(managedConfEscaped) && grep -Fqx 'listen-address=127.0.0.1' \(managedConfEscaped) && grep -Fqx 'bind-interfaces' \(managedConfEscaped) && grep -Fqx 'port=\(dnsmasqPort)' \(managedConfEscaped) && grep -Fqx 'address=/.\(suffix)/127.0.0.1' \(managedConfEscaped)"
         )
 
+        var didUpdateManagedConfig = false
         if !hasManagedConfig {
-            do {
-                _ = try await shell.run("mkdir -p \(managedDirEscaped)")
-                _ = try await shell.run("printf '%s' \(configBodyEscaped) > \(managedConfEscaped)")
-            } catch {
-                _ = try await shell.runPrivileged(
-                    "mkdir -p \(managedDirEscaped) && printf '%s' \(configBodyEscaped) > \(managedConfEscaped)",
-                    prompt: "ColimaUI needs permission to set up local website addresses for your containers."
-                )
-            }
+            _ = try await shell.run("mkdir -p \(managedDirEscaped)")
+            _ = try await shell.run("printf '%s' \(configBodyEscaped) > \(managedConfEscaped)")
+            didUpdateManagedConfig = true
         }
 
-        _ = try? await shell.run("brew services stop dnsmasq >/dev/null 2>&1 || true")
-        _ = try? await shell.run("launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/homebrew.mxcl.dnsmasq.plist >/dev/null 2>&1 || true")
-        _ = try? await shell.run("rm -f ~/Library/LaunchAgents/homebrew.mxcl.dnsmasq.plist >/dev/null 2>&1 || true")
-        _ = try? await shell.run("brew services cleanup >/dev/null 2>&1 || true")
-        _ = try? await shell.run("brew services start dnsmasq >/dev/null 2>&1")
+        if didUpdateManagedConfig {
+            _ = try? await shell.run("brew services restart dnsmasq >/dev/null 2>&1")
+        } else if !(await isDnsmasqRunning()) {
+            _ = try? await shell.run("brew services start dnsmasq >/dev/null 2>&1")
+        }
 
         if !(await waitForDnsmasqStart()) {
             _ = try? await shell.run("brew services restart dnsmasq >/dev/null 2>&1")
@@ -806,7 +803,7 @@ actor LocalDomainService {
         let managedConf = "\(brewPrefix)/etc/dnsmasq.d/\(managedDnsmasqConfig)"
         let managedEscaped = Self.shellEscape(managedConf)
         let managedReady = await commandSucceeds(
-            "test -f \(managedEscaped) && grep -Fqx 'listen-address=127.0.0.1' \(managedEscaped) && grep -Fqx 'bind-interfaces' \(managedEscaped) && grep -Fqx 'port \(dnsmasqPort)' \(managedEscaped) && grep -Fqx 'address=/.\(suffix)/127.0.0.1' \(managedEscaped)"
+            "test -f \(managedEscaped) && grep -Fqx 'listen-address=127.0.0.1' \(managedEscaped) && grep -Fqx 'bind-interfaces' \(managedEscaped) && grep -Fqx 'port=\(dnsmasqPort)' \(managedEscaped) && grep -Fqx 'address=/.\(suffix)/127.0.0.1' \(managedEscaped)"
         )
 
         if resolverReady && managedReady {
@@ -885,6 +882,14 @@ actor LocalDomainService {
         let fileManager = FileManager.default
         var candidates: [String] = []
 
+        candidates.append("/opt/homebrew/bin/colimaui")
+        candidates.append("/usr/local/bin/colimaui")
+        candidates.append("\(NSHomeDirectory())/.local/bin/colimaui")
+
+        if let bundledResource = Bundle.main.resourceURL?.appendingPathComponent("colimaui").path {
+            candidates.append(bundledResource)
+        }
+
         if let bundled = Bundle.main.path(forResource: "colimaui", ofType: nil) {
             candidates.append(bundled)
         }
@@ -905,6 +910,33 @@ actor LocalDomainService {
             return "bash \(Self.shellEscape(candidate))"
         }
         return nil
+    }
+
+    private func adjustedChecksForSuffix(_ checks: [LocalDomainCheck], suffix: String) -> [LocalDomainCheck] {
+        guard normalizeSuffix(suffix) == "local" else {
+            return checks
+        }
+
+        return checks.map { check in
+            switch check.id {
+            case "resolution" where !check.isPassing:
+                return LocalDomainCheck(
+                    id: check.id,
+                    title: check.title,
+                    isPassing: false,
+                    detail: ".local is reserved by macOS Bonjour; wildcard DNS can fail. Use .colima, .mish, or .test."
+                )
+            case "index" where !check.isPassing:
+                return LocalDomainCheck(
+                    id: check.id,
+                    title: check.title,
+                    isPassing: false,
+                    detail: "index.local is unreliable on macOS because .local is Bonjour-reserved. Use another suffix."
+                )
+            default:
+                return check
+            }
+        }
     }
 
     private func parseCLICheckOutput(_ output: String) -> [LocalDomainCheck]? {
@@ -1007,7 +1039,8 @@ struct SettingsView: View {
     @AppStorage("refreshInterval") private var refreshInterval: Double = 2.0
     @AppStorage("showStoppedContainers") private var showStoppedContainers: Bool = true
     @AppStorage("enableContainerDomains") private var enableContainerDomains: Bool = true
-    @AppStorage("containerDomainSuffix") private var containerDomainSuffix: String = "colima"
+    @AppStorage("containerDomainSuffix") private var containerDomainSuffix: String = "local"
+    @AppStorage("configuredDomainSuffix") private var configuredDomainSuffix: String = ""
     @AppStorage("preferHTTPSDomains") private var preferHTTPSDomains: Bool = false
     @State private var isColimaHovered = false
     @State private var domainSuffixDraft: String = ""
@@ -1075,7 +1108,7 @@ struct SettingsView: View {
                         title: "Domain Suffix",
                         subtitle: "Used for generated domains (service.project.suffix)"
                     ) {
-                        TextField(".colima", text: $domainSuffixDraft)
+                        TextField(".local", text: $domainSuffixDraft)
                             .textFieldStyle(.roundedBorder)
                             .font(.system(size: 12, design: .monospaced))
                             .frame(width: 220)
@@ -1099,7 +1132,7 @@ struct SettingsView: View {
                     SettingsRow(
                         icon: "gear.badge.checkmark",
                         title: "Automatic Setup",
-                        subtitle: "Run setup, verify health, or remove local-domain setup"
+                        subtitle: "One click configures DNS, resolver, proxy, and TLS for local domains"
                     ) {
                         automaticSetupControls
                     }
@@ -1243,7 +1276,7 @@ struct SettingsView: View {
         .onAppear {
             let normalizedStored = normalizedDomainSuffix(containerDomainSuffix)
             if normalizedStored.isEmpty || normalizedStored == "runpoint.local" {
-                containerDomainSuffix = "colima"
+                containerDomainSuffix = "local"
             } else if normalizedStored != containerDomainSuffix {
                 containerDomainSuffix = normalizedStored
             }
@@ -1297,6 +1330,11 @@ struct SettingsView: View {
         guard enableContainerDomains, triggerCheck else { return }
         if changed {
             ToastManager.shared.show("Using .\(normalized) for local domains", type: .success)
+            if hasLocalDomainSystemInstalled {
+                setupStatusLabel = "Suffix changed. Reconfiguring..."
+                runAutomaticSetupAndCheck(for: normalized)
+                return
+            }
         }
         runSetupCheckOnly(for: normalized)
     }
@@ -1305,7 +1343,7 @@ struct SettingsView: View {
         guard !suffix.isEmpty else { return }
         setupTask?.cancel()
         isAutoSetupRunning = true
-        setupStatusLabel = "Setting up..."
+        setupStatusLabel = "Running one-click setup..."
 
         setupTask = Task {
             do {
@@ -1314,6 +1352,9 @@ struct SettingsView: View {
                     if !Task.isCancelled {
                         setupChecks = checks
                         setupStatusLabel = checks.allSatisfy(\.isPassing) ? "Healthy" : "Needs attention"
+                        if checks.allSatisfy(\.isPassing) {
+                            configuredDomainSuffix = suffix
+                        }
                     }
                     isAutoSetupRunning = false
                 }
@@ -1367,6 +1408,7 @@ struct SettingsView: View {
                     if !Task.isCancelled {
                         setupChecks = checks
                         setupStatusLabel = "Removed"
+                        configuredDomainSuffix = ""
                         ToastManager.shared.show("Local-domain setup removed for .\(suffix)", type: .success)
                     }
                     isAutoSetupRunning = false
@@ -1411,59 +1453,60 @@ struct SettingsView: View {
 
         let scheme = preferHTTPSDomains ? "https" : "http"
         let guide = """
-        ColimaUI Local Domains - Dev Workflow
+        AGENT GUIDE: ColimaUI Local Domains
+        Suffix: .\(suffix)
 
-        1) Start Colima and open ColimaUI.
-        2) Go to Settings > Local Domains and keep it enabled.
-        3) Confirm checks are healthy (dnsmasq, resolver, proxy, TLS, index).
-        4) Start your app stack:
-           docker compose up -d
-        5) Use these URLs:
-           - Web: \(scheme)://web.<project>.\(suffix)
-           - API: \(scheme)://api.<project>.\(suffix)
-           - Index: \(scheme)://index.\(suffix)
+        Required command flow:
+        1) colimaui domains check --suffix \(suffix)
+        2) If any FAIL: colimaui domains setup --suffix \(suffix)
+        3) Re-run check until all PASS.
+        4) After container changes: colimaui domains sync --suffix \(suffix)
 
-        How traffic works:
-        - Container-to-container: normal Docker networking and internal ports.
-        - Browser-to-container: domain -> colimaui-proxy -> container HTTP port.
+        Domain rules:
+        - Compose service: <service>.<project>.\(suffix)
+        - Container fallback: <container-name>.\(suffix)
+        - Index: \(scheme)://index.\(suffix)
 
-        If auto port detection is wrong, add this label to that service:
+        Labels:
         - dev.colimaui.http-port=8080
-
-        Optional custom domains:
         - dev.colimaui.domains=api.\(suffix),docs.\(suffix)
+
+        Removal:
+        - colimaui domains unsetup --suffix \(suffix)
         """
 
-        copyToClipboard(guide, message: "Copied full dev workflow guide")
+        copyToClipboard(guide, message: "Copied agent guide")
     }
 
-    private func copyComposeTemplate() {
+    private func copyAgentMemorySnippet() {
         let suffix = normalizedDomainSuffix(containerDomainSuffix)
         guard !suffix.isEmpty else { return }
+        let scheme = preferHTTPSDomains ? "https" : "http"
 
-        let template = """
-        services:
-          web:
-            image: your-web-image
-            labels:
-              - dev.colimaui.http-port=3000
-              # optional: - dev.colimaui.domains=web.myapp.\(suffix)
+        let snippet = """
+        ## ColimaUI Local Domains
+        - Suffix: .\(suffix)
+        - Index URL: \(scheme)://index.\(suffix)
 
-          api:
-            image: your-api-image
-            labels:
-              - dev.colimaui.http-port=8080
-              # optional: - dev.colimaui.domains=api.myapp.\(suffix)
+        ### Agent Rules
+        - Before testing local domains, run: `colimaui domains check --suffix \(suffix)`.
+        - If checks fail, run: `colimaui domains setup --suffix \(suffix)`, then re-run check.
+        - After starting/stopping containers, run: `colimaui domains sync --suffix \(suffix)`.
+        - Prefer domain URLs over localhost ports when validating web services.
 
-          db:
-            image: postgres:16
+        ### Domain Mapping
+        - Compose service: `<service>.<project>.\(suffix)`
+        - Container fallback: `<container-name>.\(suffix)`
+        - Optional custom domains label: `dev.colimaui.domains=foo.\(suffix),bar.\(suffix)`
+        - Optional HTTP port override label: `dev.colimaui.http-port=8080`
 
-        # Access from macOS:
-        # web.<project>.\(suffix)
-        # api.<project>.\(suffix)
+        ### Troubleshooting
+        - If `dnsmasq service` is failing, run setup again and accept macOS admin prompt.
+        - If `Domain index` fails with TLS warning, trust local certs via setup path and re-check.
+        - To fully remove local-domain config: `colimaui domains unsetup --suffix \(suffix)`.
         """
 
-        copyToClipboard(template, message: "Copied compose template")
+        copyToClipboard(snippet, message: "Copied Agent memory snippet")
     }
 
     private func copyToClipboard(_ text: String, message: String) {
@@ -1476,21 +1519,28 @@ struct SettingsView: View {
         !setupChecks.isEmpty && setupChecks.allSatisfy(\.isPassing)
     }
 
+    private var hasLocalDomainSystemInstalled: Bool {
+        let nonBaselineChecks = setupChecks.filter { check in
+            check.id != "brew" && check.id != "colima" && check.id != "docker"
+        }
+        return nonBaselineChecks.contains(where: { $0.isPassing })
+    }
+
     private var automaticSetupControls: some View {
         HStack(spacing: 10) {
-            if !isLocalDomainSetupHealthy {
-                setupActionButton(title: "Run Setup") {
-                    runAutomaticSetupAndCheck(for: normalizedDomainSuffix(containerDomainSuffix))
-                }
+            let suffix = normalizedDomainSuffix(containerDomainSuffix)
+
+            setupPrimaryActionButton(title: isLocalDomainSetupHealthy ? "Re-run Setup" : "One-Click Setup") {
+                runAutomaticSetupAndCheck(for: suffix)
             }
 
             setupActionButton(title: "Check") {
-                runSetupCheckOnly(for: normalizedDomainSuffix(containerDomainSuffix))
+                runSetupCheckOnly(for: suffix)
             }
 
-            if isLocalDomainSetupHealthy {
+            if hasLocalDomainSystemInstalled {
                 setupActionButton(title: "Unsetup") {
-                    runAutomaticUnsetup(for: normalizedDomainSuffix(containerDomainSuffix))
+                    runAutomaticUnsetup(for: suffix)
                 }
             }
 
@@ -1514,17 +1564,17 @@ struct SettingsView: View {
     private var devWorkflowCopyPack: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("Dev Workflow Copy Pack")
+                Text("Docs + Agent Copy Pack")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(Theme.textPrimary)
                 Spacer()
                 HStack(spacing: 8) {
-                    setupActionButton(title: "Copy Full Guide", action: copyWorkflowGuide)
-                    setupActionButton(title: "Copy Compose Template", action: copyComposeTemplate)
+                    setupActionButton(title: "Copy Agent Guide", action: copyWorkflowGuide)
+                    setupActionButton(title: "Copy Agent Snippet", action: copyAgentMemorySnippet)
                 }
             }
 
-            Text("Includes a ready-to-paste setup checklist and compose labels for web + api routing.")
+            Text("Use Agent Snippet for AGENTS.md or cloud.md so assistants always run setup/check/sync correctly.")
                 .font(.system(size: 11))
                 .foregroundColor(Theme.textMuted)
         }
@@ -1569,6 +1619,25 @@ struct SettingsView: View {
             .background(Color.white.opacity(0.07))
             .cornerRadius(6)
             .disabled(!enableContainerDomains || isAutoSetupRunning)
+    }
+
+    private func setupPrimaryActionButton(title: String, action: @escaping () -> Void) -> some View {
+        Button(title, action: action)
+            .buttonStyle(.plain)
+            .font(.system(size: 11, weight: .bold))
+            .foregroundColor(Color.white)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(
+                LinearGradient(
+                    colors: [Theme.accent.opacity(0.95), Theme.accent.opacity(0.75)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .cornerRadius(7)
+            .disabled(!enableContainerDomains || isAutoSetupRunning)
+            .opacity((!enableContainerDomains || isAutoSetupRunning) ? 0.5 : 1.0)
     }
 }
 

@@ -40,7 +40,7 @@ Usage:
   colimaui domains unsetup [--suffix <suffix>] [--purge-packages]
 
 Notes:
-  - Suffix defaults to ColimaUI setting (containerDomainSuffix), then "colima".
+  - Suffix defaults to ColimaUI setting (containerDomainSuffix), then "local".
   - setup/unsetup may request sudo once for system resolver and trust changes.
 EOF
 }
@@ -56,7 +56,7 @@ default_suffix() {
   s="$(defaults read com.colimaui.app containerDomainSuffix 2>/dev/null || true)"
   s="$(normalize_suffix "$s")"
   if [[ -z "$s" ]]; then
-    s="colima"
+    s="local"
   fi
   printf '%s' "$s"
 }
@@ -405,12 +405,14 @@ check_status() {
   local fail_count=0
   local ok detail
   local brew_pfx managed_conf resolver_file cert_file key_file
+  local local_suffix_reserved="0"
 
   brew_pfx="$(brew_prefix)"
   managed_conf="${brew_pfx}/etc/dnsmasq.d/${MANAGED_DNSMASQ_CONFIG}"
   resolver_file="/etc/resolver/${suffix}"
   cert_file="${CERT_DIR}/${suffix}.pem"
   key_file="${CERT_DIR}/${suffix}-key.pem"
+  [[ "$suffix" == "local" ]] && local_suffix_reserved="1"
 
   print_check() {
     local title="$1"
@@ -445,7 +447,16 @@ check_status() {
   if [[ -f "$resolver_file" ]] && grep -Fqx "nameserver 127.0.0.1" "$resolver_file" && grep -Fqx "port ${DNS_PORT}" "$resolver_file"; then ok=1; detail="$resolver_file configured"; else ok=0; detail="Resolver missing or invalid"; fi
   print_check "macOS resolver" "$ok" "$detail"
 
-  if dnsmasq_running && command_ok "dscacheutil -q host -a name colimaui-check.${suffix} | grep -q 'ip_address: 127.0.0.1'"; then ok=1; detail="Hostnames resolve to 127.0.0.1"; else ok=0; detail="Wildcard lookup not resolving"; fi
+  if [[ "$local_suffix_reserved" == "1" ]]; then
+    ok=0
+    detail=".local is reserved by macOS Bonjour; wildcard lookups may bypass dnsmasq"
+  elif dnsmasq_running && command_ok "dscacheutil -q host -a name colimaui-check.${suffix} | grep -q 'ip_address: 127.0.0.1'"; then
+    ok=1
+    detail="Hostnames resolve to 127.0.0.1"
+  else
+    ok=0
+    detail="Wildcard lookup not resolving"
+  fi
   print_check "Wildcard resolution" "$ok" "$detail"
 
   if command_ok "docker ps --format '{{.Names}}' 2>/dev/null | grep -Fxq colimaui-proxy"; then ok=1; detail="colimaui-proxy running"; else ok=0; detail="Proxy not running"; fi
@@ -457,7 +468,16 @@ check_status() {
   if [[ -f "$cert_file" && -f "$key_file" ]]; then ok=1; detail="Wildcard cert generated"; else ok=0; detail="Certificate missing"; fi
   print_check "TLS certificate" "$ok" "$detail"
 
-  if command_ok "curl -sS --connect-timeout 2 --max-time 4 -o /dev/null https://index.${suffix}"; then ok=1; detail="Trusted HTTPS reachable"; else ok=0; detail="Index unreachable or TLS untrusted"; fi
+  if [[ "$local_suffix_reserved" == "1" ]]; then
+    ok=0
+    detail="index.local is unreliable on macOS because .local is Bonjour-reserved"
+  elif command_ok "curl -sS --connect-timeout 2 --max-time 4 -o /dev/null https://index.${suffix}"; then
+    ok=1
+    detail="Trusted HTTPS reachable"
+  else
+    ok=0
+    detail="Index unreachable or TLS untrusted"
+  fi
   print_check "Domain index" "$ok" "$detail"
 
   if (( fail_count > 0 )); then
@@ -471,6 +491,10 @@ setup_domains() {
   local brew_pfx managed_dir managed_conf resolver_file caroot
 
   command -v brew >/dev/null 2>&1 || die "Homebrew is required"
+
+  if [[ "$suffix" == "local" ]]; then
+    warn ".local is reserved by macOS Bonjour. For wildcard local domains, use .colima, .mish, or .test."
+  fi
 
   brew_pfx="$(brew_prefix)"
   managed_dir="${brew_pfx}/etc/dnsmasq.d"
@@ -621,7 +645,7 @@ main() {
   if [[ -z "$suffix" ]]; then
     suffix="$(default_suffix)"
   fi
-  [[ -n "$suffix" ]] || suffix="colima"
+  [[ -n "$suffix" ]] || suffix="local"
 
   case "$action" in
     setup)

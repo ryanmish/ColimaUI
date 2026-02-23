@@ -33,7 +33,7 @@ struct MenuBarMenuView: View {
     @State private var domainHealthy = false
 
     @AppStorage("enableContainerDomains") private var enableContainerDomains: Bool = false
-    @AppStorage("containerDomainSuffix") private var containerDomainSuffix: String = "colima"
+    @AppStorage("containerDomainSuffix") private var containerDomainSuffix: String = "local"
     @AppStorage("preferHTTPSDomains") private var preferHTTPSDomains: Bool = false
 
     private struct DomainEntry: Identifiable {
@@ -61,7 +61,7 @@ struct MenuBarMenuView: View {
 
     private var domainEntries: [DomainEntry] {
         guard enableContainerDomains else { return [] }
-        let suffix = normalizedSuffix.isEmpty ? "colima" : normalizedSuffix
+        let suffix = normalizedSuffix.isEmpty ? "local" : normalizedSuffix
 
         return runningContainers.compactMap { container in
             let domains = container.localDomains(domainSuffix: suffix)
@@ -206,7 +206,7 @@ struct MenuBarMenuView: View {
     private func openDomainIndex() {
         guard enableContainerDomains else { return }
         let scheme = preferHTTPSDomains ? "https" : "http"
-        let suffix = normalizedSuffix.isEmpty ? "colima" : normalizedSuffix
+        let suffix = normalizedSuffix.isEmpty ? "local" : normalizedSuffix
         guard let url = URL(string: "\(scheme)://index.\(suffix)") else { return }
         NSWorkspace.shared.open(url)
     }
@@ -228,7 +228,7 @@ struct MenuBarMenuView: View {
 
     private func copyDomainIndex() {
         let scheme = preferHTTPSDomains ? "https" : "http"
-        let suffix = normalizedSuffix.isEmpty ? "colima" : normalizedSuffix
+        let suffix = normalizedSuffix.isEmpty ? "local" : normalizedSuffix
         let value = "\(scheme)://index.\(suffix)"
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(value, forType: .string)
