@@ -2,22 +2,74 @@ import SwiftUI
 import AppKit
 
 final class AppLifecycleDelegate: NSObject, NSApplicationDelegate {
+    private var windowCloseObserver: NSObjectProtocol?
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         LocalDomainsAutopilot.shared.start()
+        windowCloseObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification,
+            object: nil,
+            queue: .main
+        ) { _ in
+            DispatchQueue.main.async {
+                Self.updateActivationPolicyForVisibleWindows()
+            }
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
     }
 
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !flag {
+            Self.activateAsRegularApp()
+            if let window = sender.windows.first(where: { $0.canBecomeMain }) {
+                window.makeKeyAndOrderFront(nil)
+            }
+        }
+        return true
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
+        if let windowCloseObserver {
+            NotificationCenter.default.removeObserver(windowCloseObserver)
+        }
         LocalDomainsAutopilot.shared.stop()
+    }
+
+    static func activateAsRegularApp() {
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    static func updateActivationPolicyForVisibleWindows() {
+        let hasVisibleMainWindow = NSApp.windows.contains { window in
+            window.canBecomeMain && window.isVisible && !window.isMiniaturized
+        }
+        NSApp.setActivationPolicy(hasVisibleMainWindow ? .regular : .accessory)
     }
 }
 
 @main
 struct ColimaUIApp: App {
     @NSApplicationDelegateAdaptor(AppLifecycleDelegate.self) var appDelegate
+    private static let menuBarTemplateImage: NSImage = {
+        let assetName = NSImage.Name("ColimaToolbarIcon")
+        if let loaded = NSImage(named: assetName)?.copy() as? NSImage {
+            loaded.size = NSSize(width: 21, height: 21)
+            loaded.isTemplate = true
+            return loaded
+        }
+
+        let fallback = NSImage(
+            systemSymbolName: "shippingbox",
+            accessibilityDescription: "ColimaUI"
+        ) ?? NSImage(size: NSSize(width: 21, height: 21))
+        fallback.size = NSSize(width: 21, height: 21)
+        fallback.isTemplate = true
+        return fallback
+    }()
 
     var body: some Scene {
         WindowGroup(id: "main") {
@@ -32,11 +84,11 @@ struct ColimaUIApp: App {
         MenuBarExtra {
             MenuBarMenuView()
         } label: {
-            Image("ColimaToolbarIcon")
+            Image(nsImage: Self.menuBarTemplateImage)
                 .renderingMode(.template)
                 .resizable()
                 .scaledToFit()
-                .frame(width: 17, height: 17)
+                .frame(width: 21, height: 21)
         }
     }
 }
@@ -90,11 +142,14 @@ struct MenuBarMenuView: View {
     var body: some View {
         Group {
             Button("Open ColimaUI") {
-                NSApp.activate(ignoringOtherApps: true)
-                if let window = NSApp.windows.first(where: { $0.isVisible }) {
+                AppLifecycleDelegate.activateAsRegularApp()
+                if let window = NSApp.windows.first(where: { $0.canBecomeMain && $0.isVisible }) {
                     window.makeKeyAndOrderFront(nil)
                 } else {
                     openWindow(id: "main")
+                    DispatchQueue.main.async {
+                        AppLifecycleDelegate.activateAsRegularApp()
+                    }
                 }
             }
 

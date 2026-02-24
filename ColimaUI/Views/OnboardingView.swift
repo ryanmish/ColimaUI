@@ -21,10 +21,13 @@ struct OnboardingView: View {
                     .font(.system(size: 32, weight: .semibold))
                     .foregroundColor(Theme.textPrimary)
 
-                Text("A native macOS app for managing\nColima VMs and Docker containers")
+                Text("A native macOS app for managing Colima VMs and Docker containers")
                     .font(.body)
                     .foregroundColor(Theme.textMuted)
+                    .lineLimit(2)
                     .multilineTextAlignment(.center)
+                    .frame(maxWidth: 420)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.bottom, 48)
 

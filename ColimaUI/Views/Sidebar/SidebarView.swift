@@ -156,11 +156,17 @@ struct VMSidebarItem: View {
                     Text(vm.name)
                         .font(.system(size: 13))
                         .foregroundColor(isSelected ? Theme.textPrimary : Theme.textSecondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .minimumScaleFactor(0.9)
+                        .layoutPriority(1)
 
                     if showDetails || isSelected {
                         Text("\(vm.cpus) CPU · \(vm.formattedMemory)")
                             .font(.system(size: 10))
                             .foregroundColor(Theme.textMuted)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
                             .transition(.opacity.combined(with: .move(edge: .top)))
                     }
                 }
@@ -258,6 +264,10 @@ struct SidebarItem: View {
                 Text(title)
                     .font(.system(size: 13))
                     .foregroundColor(isSelected ? Theme.textPrimary : Theme.textSecondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .minimumScaleFactor(0.9)
+                    .layoutPriority(1)
 
                 Spacer()
 
@@ -269,6 +279,7 @@ struct SidebarItem: View {
                         .padding(.vertical, 2)
                         .background(Theme.cardBackground)
                         .cornerRadius(4)
+                        .fixedSize()
                 }
             }
             .padding(.horizontal, 16)
@@ -306,6 +317,9 @@ struct NewProfileButton: View {
                 Text("New Profile")
                     .font(.system(size: 12))
                     .foregroundColor(Theme.textMuted)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .layoutPriority(1)
 
                 Spacer()
             }
