@@ -451,21 +451,24 @@ struct SettingsView: View {
         let scheme = preferHTTPSDomains ? "https" : "http"
         let context = """
         ## ColimaUI Local Domains Context
-        ColimaUI is a macOS app for managing Colima VMs and Docker containers. Colima runs containers; ColimaUI adds route discovery and stable .\(suffix) local domains.
+        ColimaUI is a macOS app for managing Colima VMs and Docker containers. Colima runs the containers; ColimaUI provides stable local routing on `.\(suffix)` so multi-service projects behave like deployed environments without localhost port collisions.
 
         ### Non-negotiables
         - Domain suffix is fixed to `.\(suffix)`.
-        - Keep Local Domains Autopilot enabled in ColimaUI.
-        - Prefer domain URLs over localhost ports for web services.
+        - Keep Local Domains Autopilot enabled in ColimaUI settings.
+        - Use domain URLs instead of localhost ports for web services.
         - Index URL: `\(scheme)://index.\(suffix)`
 
-        ### Standard Workflow
-        1. Start services from the project root: `docker compose up -d`
-        2. Wait for routes to sync: poll `colimaui domains urls --json` until your service appears, or force sync with `colimaui domains sync`
-        3. List live URLs: `colimaui domains urls --json`
-        4. Continue only when all checks are PASS (especially Reverse proxy + TLS trust).
-        5. If TLS trust fails: `colimaui domains trust && colimaui domains check`
-        6. If health/setup fails: `colimaui domains setup && colimaui domains check`
+        ### Startup Checks
+        1. Ensure Colima and Docker are reachable: `colima status && docker info`
+        2. Ensure local-domain stack is healthy: `colimaui domains check`
+
+        ### Standard Agent Workflow
+        1. Start services from project root: `docker compose up -d`
+        2. Force route sync: `colimaui domains sync`
+        3. Poll for routes until expected services appear: `colimaui domains urls --json`
+        4. Use discovered URLs for integration tests, API calls, browser checks, and agent outputs.
+        5. Continue only when `colimaui domains check` is all PASS.
 
         ### Domain Patterns
         - Compose service: `<service>.<project>.\(suffix)`
@@ -474,10 +477,12 @@ struct SettingsView: View {
         - Optional HTTP port label: `dev.colimaui.http-port=8080`
 
         ### Recovery
-        - Rebuild and verify routing: `colimaui domains setup && colimaui domains check`
-        - Re-apply TLS trust only: `colimaui domains trust && colimaui domains check`
-        - Remove local-domain setup: `colimaui domains unsetup`
-        - macOS can request admin permission for resolver/network/trust changes.
+        - If routes are missing: `colimaui domains sync && colimaui domains urls --json`
+        - If health fails: `colimaui domains check`
+        - If TLS trust fails: `colimaui domains trust && colimaui domains check`
+        - If setup is broken: `colimaui domains setup && colimaui domains check`
+        - Full teardown: `colimaui domains unsetup`
+        - macOS prompts can appear for DNS/resolver and certificate trust operations.
 
         ### Placement
         - Paste into `AGENTS.md` or `CLAUDE.md` (Claude Code).
