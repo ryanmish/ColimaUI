@@ -11,9 +11,9 @@ enum LocalDomainsReconcileTrigger: String {
 struct LocalDomainsAutopilotPolicy {
     static func shouldAttemptRepair(trigger: LocalDomainsReconcileTrigger) -> Bool {
         switch trigger {
-        case .manual, .settingsChange:
+        case .manual:
             return true
-        case .periodic, .dockerEvent:
+        case .settingsChange, .periodic, .dockerEvent:
             return false
         }
     }

@@ -616,7 +616,7 @@ struct SettingsView: View {
     }
 
     private var setupPermissionNote: some View {
-        Text("Autopilot/setup can request admin access for DNS/resolver. TLS trust updates can prompt separately in macOS Keychain.")
+        Text("Autopilot runs non-privileged checks/sync. Admin prompts appear only when you run setup/unsetup, and TLS trust can prompt separately in Keychain.")
             .font(.system(size: 11))
             .foregroundColor(Theme.textMuted)
     }

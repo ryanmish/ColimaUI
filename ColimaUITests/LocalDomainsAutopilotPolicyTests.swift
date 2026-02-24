@@ -6,8 +6,8 @@ final class LocalDomainsAutopilotPolicyTests: XCTestCase {
         XCTAssertTrue(LocalDomainsAutopilotPolicy.shouldAttemptRepair(trigger: .manual))
     }
 
-    func testRepairAllowedForSettingsChange() {
-        XCTAssertTrue(LocalDomainsAutopilotPolicy.shouldAttemptRepair(trigger: .settingsChange))
+    func testRepairNotAllowedForSettingsChange() {
+        XCTAssertFalse(LocalDomainsAutopilotPolicy.shouldAttemptRepair(trigger: .settingsChange))
     }
 
     func testRepairNotAllowedForPeriodic() {
