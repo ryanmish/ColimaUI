@@ -7,7 +7,7 @@ struct MainView: View {
     var body: some View {
         NavigationSplitView(columnVisibility: .constant(.all)) {
             SidebarView(viewModel: viewModel)
-                .navigationSplitViewColumnWidth(min: 260, ideal: Theme.sidebarWidth, max: 340)
+                .navigationSplitViewColumnWidth(min: 320, ideal: Theme.sidebarWidth, max: 380)
                 .toolbar(removing: .sidebarToggle)
         } detail: {
             detailView

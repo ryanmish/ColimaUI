@@ -24,7 +24,7 @@ enum Theme {
     static let cornerRadius: CGFloat = 12
     static let cardPadding: CGFloat = 16
     static let spacing: CGFloat = 12
-    static let sidebarWidth: CGFloat = 280
+    static let sidebarWidth: CGFloat = 320
 
     // MARK: - Animation
 
