@@ -410,6 +410,38 @@ struct SettingsView: View {
         }
     }
 
+    private func runTrustTLS(for suffix: String) {
+        guard !suffix.isEmpty else { return }
+        setupTask?.cancel()
+        isAutoSetupRunning = true
+        setupStatusLabel = "Trusting TLS..."
+
+        setupTask = Task {
+            do {
+                let checks = try await LocalDomainService.shared.trustTLS(suffix: suffix)
+                await MainActor.run {
+                    if !Task.isCancelled {
+                        setupChecks = checks
+                        setupStatusLabel = checks.allSatisfy(\.isPassing) ? "Healthy" : "Needs attention"
+                        ToastManager.shared.show("TLS trust refreshed for .\(suffix)", type: .success)
+                    }
+                    isAutoSetupRunning = false
+                }
+            } catch is CancellationError {
+                await MainActor.run {
+                    isAutoSetupRunning = false
+                    setupStatusLabel = "Cancelled"
+                }
+            } catch {
+                await MainActor.run {
+                    isAutoSetupRunning = false
+                    setupStatusLabel = "Needs attention"
+                    ToastManager.shared.show("TLS trust failed: \(error.localizedDescription)", type: .error)
+                }
+            }
+        }
+    }
+
     private func openDomainIndex() {
         let normalized = normalizedDomainSuffix(containerDomainSuffix)
         guard !normalized.isEmpty else { return }
@@ -446,10 +478,11 @@ struct SettingsView: View {
 
         ### Standard Workflow
         1. Start services from the project root: `docker compose up -d`
-        2. Wait for autopilot to sync routes.
-        3. List live URLs: `colimaui domains urls`
-        4. If routes are stale: `colimaui domains sync`
-        5. If health/setup fails: `colimaui domains setup && colimaui domains check`
+        2. Sync and verify routing: `colimaui domains sync && colimaui domains check`
+        3. List live URLs: `colimaui domains urls --json`
+        4. Continue only when all checks are PASS (especially Reverse proxy + TLS trust).
+        5. If TLS trust fails: `colimaui domains trust && colimaui domains check`
+        6. If health/setup fails: `colimaui domains setup && colimaui domains check`
 
         ### Domain Patterns
         - Compose service: `<service>.<project>.\(suffix)`
@@ -459,6 +492,7 @@ struct SettingsView: View {
 
         ### Recovery
         - Rebuild and verify routing: `colimaui domains setup && colimaui domains check`
+        - Re-apply TLS trust only: `colimaui domains trust && colimaui domains check`
         - Remove local-domain setup: `colimaui domains unsetup`
         - macOS can request admin permission for resolver/network/trust changes.
 
@@ -572,6 +606,10 @@ struct SettingsView: View {
                 runSetupCheckOnly(for: suffix)
             }
 
+            setupActionButton(title: "Trust TLS") {
+                runTrustTLS(for: suffix)
+            }
+
             if hasLocalDomainSystemInstalled {
                 setupActionButton(title: "Unsetup") {
                     runAutomaticUnsetup(for: suffix)
@@ -590,7 +628,7 @@ struct SettingsView: View {
     }
 
     private var setupPermissionNote: some View {
-        Text("Autopilot and setup can prompt for macOS admin access (DNS/resolver) and may add dnsmasq as a background item.")
+        Text("Autopilot/setup can request admin access for DNS/resolver. TLS trust updates can prompt separately in macOS Keychain.")
             .font(.system(size: 11))
             .foregroundColor(Theme.textMuted)
     }

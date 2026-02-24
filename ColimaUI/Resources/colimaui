@@ -4,7 +4,7 @@ set -euo pipefail
 PATH="/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/local/sbin:$PATH"
 
 SCRIPT_NAME="colimaui"
-CLI_VERSION="1.1.14"
+CLI_VERSION="1.1.16"
 DNS_PORT="53535"
 MANAGED_DNSMASQ_CONFIG="colimaui.conf"
 MKCERT_CAROOT="${HOME}/Library/Application Support/ColimaUI/mkcert-v2"
@@ -36,14 +36,16 @@ ColimaUI CLI
 Usage:
   colimaui --version
   colimaui domains setup
+  colimaui domains trust
   colimaui domains check
   colimaui domains sync
-  colimaui domains urls
+  colimaui domains urls [--json]
   colimaui domains unsetup [--purge-packages]
 
 Notes:
   - Domain suffix is fixed to "dev.local".
   - setup/unsetup may request macOS admin credentials for resolver and DNS changes.
+  - trust may request macOS admin credentials for certificate trust changes.
 EOF
 }
 
@@ -51,10 +53,6 @@ normalize_suffix() {
   printf '%s' "${1:-}" \
     | tr '[:upper:]' '[:lower:]' \
     | sed -E 's/^[.]+//; s/[[:space:]]+//g'
-}
-
-default_suffix() {
-  printf '%s' "dev.local"
 }
 
 brew_prefix() {
@@ -67,14 +65,6 @@ brew_prefix() {
   else
     printf '%s' "/usr/local"
   fi
-}
-
-command_ok() {
-  local cmd="$1"
-  if eval "$cmd" >/dev/null 2>&1; then
-    return 0
-  fi
-  return 1
 }
 
 shell_quote() {
@@ -138,11 +128,11 @@ with_operation_lock() {
 }
 
 dnsmasq_running() {
-  command_ok "lsof -nP -iTCP:${DNS_PORT} -iUDP:${DNS_PORT} 2>/dev/null | grep -qi 'dnsmasq'"
+  lsof -nP -iTCP:"${DNS_PORT}" -iUDP:"${DNS_PORT}" 2>/dev/null | grep -qi 'dnsmasq'
 }
 
 docker_reachable() {
-  command_ok "colima status >/dev/null 2>&1" && command_ok "docker info >/dev/null 2>&1"
+  colima status >/dev/null 2>&1 && docker info >/dev/null 2>&1
 }
 
 label_value() {
@@ -315,6 +305,52 @@ tls:
 EOF
 }
 
+proxy_identity_reachable() {
+  local suffix="$1"
+  local cert_file="$2"
+  local expected_fp served_fp
+
+  [[ -f "$cert_file" ]] || return 1
+
+  expected_fp="$(openssl x509 -in "$cert_file" -noout -fingerprint -sha256 2>/dev/null | awk -F= '{print $2}' | tr -d '[:space:]' || true)"
+  served_fp="$(echo | openssl s_client -connect "index.${suffix}:443" -servername "index.${suffix}" 2>/dev/null | openssl x509 -noout -fingerprint -sha256 2>/dev/null | awk -F= '{print $2}' | tr -d '[:space:]' || true)"
+
+  [[ -n "$expected_fp" && -n "$served_fp" && "$expected_fp" == "$served_fp" ]]
+}
+
+collect_container_domains() {
+  local name="$1"
+  local labels="$2"
+  local suffix="$3"
+  local output_file="$4"
+
+  local compose_service compose_project container_label custom_domains d normalized
+
+  compose_service="$(label_value "${labels:-}" "com.docker.compose.service" || true)"
+  compose_project="$(label_value "${labels:-}" "com.docker.compose.project" || true)"
+  if [[ -n "$compose_service" && -n "$compose_project" ]]; then
+    compose_service="$(normalize_domain_label "$compose_service")"
+    compose_project="$(normalize_domain_label "$compose_project")"
+    if [[ -n "$compose_service" && -n "$compose_project" ]]; then
+      echo "${compose_service}.${compose_project}.${suffix}" >> "$output_file"
+    fi
+  fi
+
+  container_label="$(normalize_domain_label "$name")"
+  if [[ -n "$container_label" ]]; then
+    echo "${container_label}.${suffix}" >> "$output_file"
+  fi
+
+  custom_domains="$(label_value "${labels:-}" "dev.colimaui.domains" || true)"
+  if [[ -n "$custom_domains" ]]; then
+    IFS=',' read -r -a custom_parts <<< "$custom_domains"
+    for d in "${custom_parts[@]}"; do
+      normalized="$(normalize_full_domain "$d" || true)"
+      [[ -n "$normalized" ]] && echo "$normalized" >> "$output_file"
+    done
+  fi
+}
+
 sync_routes() {
   local suffix="$1"
   local dynamic_dir="$2"
@@ -382,34 +418,8 @@ sync_routes() {
 
     local domains_file
     domains_file="$(mktemp)"
-
-    local compose_service compose_project container_label full
-    compose_service="$(label_value "${labels:-}" "com.docker.compose.service" || true)"
-    compose_project="$(label_value "${labels:-}" "com.docker.compose.project" || true)"
-
-    if [[ -n "$compose_service" && -n "$compose_project" ]]; then
-      compose_service="$(normalize_domain_label "$compose_service")"
-      compose_project="$(normalize_domain_label "$compose_project")"
-      if [[ -n "$compose_service" && -n "$compose_project" ]]; then
-        echo "${compose_service}.${compose_project}.${suffix}" >> "$domains_file"
-      fi
-    fi
-
-    container_label="$(normalize_domain_label "$name")"
-    if [[ -n "$container_label" ]]; then
-      echo "${container_label}.${suffix}" >> "$domains_file"
-    fi
-
-    local custom_domains
-    custom_domains="$(label_value "${labels:-}" "dev.colimaui.domains" || true)"
-    if [[ -n "$custom_domains" ]]; then
-      local d normalized
-      IFS=',' read -r -a custom_parts <<< "$custom_domains"
-      for d in "${custom_parts[@]}"; do
-        normalized="$(normalize_full_domain "$d" || true)"
-        [[ -n "$normalized" ]] && echo "$normalized" >> "$domains_file"
-      done
-    fi
+    local full
+    collect_container_domains "$name" "${labels:-}" "$suffix" "$domains_file"
 
     if [[ -s "$domains_file" ]]; then
       while IFS= read -r full; do
@@ -462,7 +472,7 @@ list_urls() {
 
   docker_reachable || die "Docker API unreachable"
 
-  local line id name ports labels port domains_file compose_service compose_project container_label custom_domains d normalized full
+  local line id name ports labels port domains_file full
   while IFS=$'\t' read -r id name ports labels; do
     [[ -z "$id" ]] && continue
     [[ "$name" == "colimaui-proxy" ]] && continue
@@ -471,30 +481,7 @@ list_urls() {
     [[ -z "$port" ]] && continue
 
     domains_file="$(mktemp)"
-
-    compose_service="$(label_value "${labels:-}" "com.docker.compose.service" || true)"
-    compose_project="$(label_value "${labels:-}" "com.docker.compose.project" || true)"
-    if [[ -n "$compose_service" && -n "$compose_project" ]]; then
-      compose_service="$(normalize_domain_label "$compose_service")"
-      compose_project="$(normalize_domain_label "$compose_project")"
-      if [[ -n "$compose_service" && -n "$compose_project" ]]; then
-        echo "${compose_service}.${compose_project}.${suffix}" >> "$domains_file"
-      fi
-    fi
-
-    container_label="$(normalize_domain_label "$name")"
-    if [[ -n "$container_label" ]]; then
-      echo "${container_label}.${suffix}" >> "$domains_file"
-    fi
-
-    custom_domains="$(label_value "${labels:-}" "dev.colimaui.domains" || true)"
-    if [[ -n "$custom_domains" ]]; then
-      IFS=',' read -r -a custom_parts <<< "$custom_domains"
-      for d in "${custom_parts[@]}"; do
-        normalized="$(normalize_full_domain "$d" || true)"
-        [[ -n "$normalized" ]] && echo "$normalized" >> "$domains_file"
-      done
-    fi
+    collect_container_domains "$name" "${labels:-}" "$suffix" "$domains_file"
 
     if [[ -s "$domains_file" ]]; then
       while IFS= read -r full; do
@@ -509,6 +496,10 @@ list_urls() {
 
   sort -u "$tmp"
   rm -f "$tmp"
+}
+
+list_urls_json() {
+  list_urls | /usr/bin/python3 -c 'import json,sys; print(json.dumps([line.rstrip("\n") for line in sys.stdin if line.strip()]))'
 }
 
 check_status() {
@@ -541,10 +532,10 @@ check_status() {
   if command -v brew >/dev/null 2>&1; then ok=1; detail="Installed"; else ok=0; detail="Missing"; fi
   print_check "Homebrew" "$ok" "$detail"
 
-  if command_ok "colima status >/dev/null 2>&1"; then ok=1; detail="Running"; else ok=0; detail="Not running"; fi
+  if colima status >/dev/null 2>&1; then ok=1; detail="Running"; else ok=0; detail="Not running"; fi
   print_check "Colima runtime" "$ok" "$detail"
 
-  if command_ok "docker info >/dev/null 2>&1"; then ok=1; detail="Reachable"; else ok=0; detail="Unavailable"; fi
+  if docker info >/dev/null 2>&1; then ok=1; detail="Reachable"; else ok=0; detail="Unavailable"; fi
   print_check "Docker API" "$ok" "$detail"
 
   if command -v dnsmasq >/dev/null 2>&1; then ok=1; detail="Installed"; else ok=0; detail="Missing"; fi
@@ -559,7 +550,7 @@ check_status() {
   if [[ -f "$resolver_file" ]] && grep -Fqx "nameserver 127.0.0.1" "$resolver_file" && grep -Fqx "port ${DNS_PORT}" "$resolver_file"; then ok=1; detail="$resolver_file configured"; else ok=0; detail="Resolver missing or invalid"; fi
   print_check "macOS resolver" "$ok" "$detail"
 
-  if dnsmasq_running && command_ok "dscacheutil -q host -a name colimaui-check.${suffix} | grep -q 'ip_address: 127.0.0.1'"; then
+  if dnsmasq_running && dscacheutil -q host -a name "colimaui-check.${suffix}" | grep -q 'ip_address: 127.0.0.1'; then
     ok=1
     if [[ "$local_suffix_reserved" == "1" ]]; then
       detail="Hostnames resolve to 127.0.0.1 (.local may still conflict with Bonjour)"
@@ -576,7 +567,18 @@ check_status() {
   fi
   print_check "Wildcard resolution" "$ok" "$detail"
 
-  if command_ok "docker ps --format '{{.Names}}' 2>/dev/null | grep -Fxq colimaui-proxy"; then ok=1; detail="colimaui-proxy running"; else ok=0; detail="Proxy not running"; fi
+  if docker ps --format '{{.Names}}' 2>/dev/null | grep -Fxq colimaui-proxy; then
+    if proxy_identity_reachable "$suffix" "$cert_file"; then
+      ok=1
+      detail="colimaui-proxy running and serving expected certificate"
+    else
+      ok=0
+      detail="Proxy reachable but certificate does not match expected local cert"
+    fi
+  else
+    ok=0
+    detail="Proxy not running"
+  fi
   print_check "Reverse proxy" "$ok" "$detail"
 
   if command -v mkcert >/dev/null 2>&1; then ok=1; detail="Installed"; else ok=0; detail="Missing"; fi
@@ -642,8 +644,8 @@ setup_prepare_domains() {
   DYNAMIC_DIR="${HOME}/Library/Application Support/ColimaUI/proxy/dynamic"
 
   log "Installing dependencies (dnsmasq, mkcert)..."
-  command_ok "brew list dnsmasq >/dev/null 2>&1" || brew install dnsmasq
-  command_ok "brew list mkcert >/dev/null 2>&1" || brew install mkcert
+  brew list dnsmasq >/dev/null 2>&1 || brew install dnsmasq
+  brew list mkcert >/dev/null 2>&1 || brew install mkcert
 }
 
 setup_apply_privileged() {
@@ -713,7 +715,7 @@ EOF
   if (( EUID == 0 )); then
     /bin/zsh -lc "$admin_script" >/dev/null 2>&1 || die "Privileged setup failed."
   else
-    run_admin_command "$admin_script" "ColimaUI needs administrator permission to update DNS, resolver, and certificate trust for .${suffix} domains." || die "Privileged setup was cancelled or failed."
+    run_admin_command "$admin_script" "ColimaUI needs administrator permission to update DNS and resolver settings for .${suffix} domains." || die "Privileged setup was cancelled or failed."
   fi
 }
 
@@ -723,18 +725,11 @@ setup_finalize_domains() {
   local tries=0
   local dnsmasq_service_snapshot=""
   local launchctl_snapshot=""
-  local bootstrap_cert bootstrap_key bootstrap_error
 
   caroot="${MKCERT_CAROOT}"
 
   log "Preparing local CA..."
-  bootstrap_cert="$(mktemp)"
-  bootstrap_key="$(mktemp)"
-  if ! bootstrap_error="$(CAROOT="$caroot" mkcert -cert-file "$bootstrap_cert" -key-file "$bootstrap_key" localhost 2>&1 >/dev/null)"; then
-    rm -f "$bootstrap_cert" "$bootstrap_key"
-    die "mkcert CA bootstrap failed: ${bootstrap_error}"
-  fi
-  rm -f "$bootstrap_cert" "$bootstrap_key"
+  ensure_mkcert_ca "$caroot"
 
   log "Starting dnsmasq service..."
   brew services start dnsmasq >/dev/null 2>&1 || true
@@ -751,11 +746,7 @@ setup_finalize_domains() {
 
   mkdir -p "$CERT_DIR" "$DYNAMIC_DIR"
 
-  if [[ -f "${caroot}/rootCA.pem" ]]; then
-    if ! security add-trusted-cert -d -r trustRoot -k "${HOME}/Library/Keychains/login.keychain-db" "${caroot}/rootCA.pem" >/dev/null 2>&1; then
-      die "mkcert trust installation failed for ${caroot}/rootCA.pem"
-    fi
-  fi
+  install_trust "$suffix"
 
   log "Generating wildcard certificate for .${suffix}..."
   CAROOT="$caroot" mkcert -cert-file "${CERT_DIR}/${suffix}.pem" -key-file "${CERT_DIR}/${suffix}-key.pem" "*.${suffix}" "${suffix}" "index.${suffix}" localhost 127.0.0.1 ::1 >/dev/null
@@ -766,6 +757,9 @@ setup_finalize_domains() {
     log "Refreshing reverse proxy and syncing routes..."
     ensure_proxy_container "$DYNAMIC_DIR" "$CERT_DIR" "1"
     sync_routes "$suffix" "$DYNAMIC_DIR"
+    if ! wait_for_proxy_certificate "$suffix" "${CERT_DIR}/${suffix}.pem"; then
+      die "Reverse proxy did not serve the expected TLS certificate in time."
+    fi
   else
     warn "Docker API unreachable; skipped proxy startup/sync"
   fi
@@ -773,6 +767,53 @@ setup_finalize_domains() {
   dscacheutil -flushcache >/dev/null 2>&1 || true
   log ""
   check_status "$suffix"
+}
+
+install_trust() {
+  local suffix="$1"
+  local caroot
+  command -v mkcert >/dev/null 2>&1 || die "mkcert is required. Run: colimaui domains setup"
+  caroot="${MKCERT_CAROOT}"
+  ensure_mkcert_ca "$caroot"
+
+  if ! security add-trusted-cert -d -r trustRoot -k "${HOME}/Library/Keychains/login.keychain-db" "${caroot}/rootCA.pem" >/dev/null 2>&1; then
+    die "mkcert trust installation failed for ${caroot}/rootCA.pem"
+  fi
+
+  log "TLS trust refreshed for .${suffix}"
+}
+
+ensure_mkcert_ca() {
+  local caroot="$1"
+  local bootstrap_cert bootstrap_key bootstrap_error
+  mkdir -p "$caroot"
+  if [[ ! -f "${caroot}/rootCA.pem" || ! -f "${caroot}/rootCA-key.pem" ]]; then
+    bootstrap_cert="$(mktemp)"
+    bootstrap_key="$(mktemp)"
+    if ! bootstrap_error="$(CAROOT="$caroot" mkcert -cert-file "$bootstrap_cert" -key-file "$bootstrap_key" localhost 2>&1 >/dev/null)"; then
+      rm -f "$bootstrap_cert" "$bootstrap_key"
+      die "mkcert CA bootstrap failed: ${bootstrap_error}"
+    fi
+    rm -f "$bootstrap_cert" "$bootstrap_key"
+  fi
+  if [[ ! -f "${caroot}/rootCA.pem" ]]; then
+    die "mkcert root CA not found at ${caroot}/rootCA.pem"
+  fi
+}
+
+wait_for_proxy_certificate() {
+  local suffix="$1"
+  local cert_file="$2"
+  local attempts=0
+
+  while (( attempts < 80 )); do
+    if proxy_identity_reachable "$suffix" "$cert_file"; then
+      return 0
+    fi
+    attempts=$((attempts + 1))
+    sleep 0.25
+  done
+  return 1
 }
 
 unsetup_domains() {
@@ -841,6 +882,7 @@ main() {
   local action="${2:-}"
   local suffix=""
   local purge_packages="0"
+  local output_json="0"
 
   if [[ "$namespace" == "-v" || "$namespace" == "--version" ]]; then
     log "${SCRIPT_NAME} ${CLI_VERSION}"
@@ -873,6 +915,10 @@ main() {
         purge_packages="1"
         shift
         ;;
+      --json)
+        output_json="1"
+        shift
+        ;;
       -h|--help)
         usage
         exit 0
@@ -890,9 +936,16 @@ main() {
   fi
   suffix="dev.local"
 
+  if [[ "$output_json" == "1" && "$action" != "urls" ]]; then
+    die "--json is only supported with 'colimaui domains urls'"
+  fi
+
   case "$action" in
     setup)
       with_operation_lock setup_domains "$suffix"
+      ;;
+    trust)
+      with_operation_lock install_trust "$suffix"
       ;;
     setup-prep)
       setup_prepare_domains "$suffix"
@@ -910,7 +963,11 @@ main() {
       with_operation_lock sync_domains "$suffix"
       ;;
     urls)
-      list_urls
+      if [[ "$output_json" == "1" ]]; then
+        list_urls_json
+      else
+        list_urls
+      fi
       ;;
     unsetup)
       with_operation_lock unsetup_domains "$suffix" "$purge_packages"

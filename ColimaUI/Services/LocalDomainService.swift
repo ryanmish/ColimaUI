@@ -92,6 +92,22 @@ actor LocalDomainService {
         return await checkSetup(suffix: normalized)
     }
 
+    func trustTLS(suffix: String) async throws -> [LocalDomainCheck] {
+        let normalized = normalizeSuffix(suffix)
+        guard !normalized.isEmpty else {
+            throw LocalDomainSetupError.invalidSuffix
+        }
+
+        let result = try await runRequiredCLIAction("trust", suffix: normalized)
+        guard result.exitCode == 0 else {
+            throw ShellError.commandFailed(
+                summarizeCLIError(result.output, fallback: "TLS trust update failed.")
+            )
+        }
+
+        return await checkSetup(suffix: normalized)
+    }
+
     func checkSetup(suffix: String) async -> [LocalDomainCheck] {
         let normalized = normalizeSuffix(suffix)
         guard !normalized.isEmpty else {
