@@ -2,6 +2,14 @@ import SwiftUI
 import AppKit
 
 final class AppLifecycleDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        LocalDomainsAutopilot.shared.start()
+    }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        false
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         LocalDomainsAutopilot.shared.stop()
     }
@@ -12,7 +20,7 @@ struct ColimaUIApp: App {
     @NSApplicationDelegateAdaptor(AppLifecycleDelegate.self) var appDelegate
 
     var body: some Scene {
-        WindowGroup {
+        WindowGroup(id: "main") {
             RootView()
                 .frame(minWidth: 900, minHeight: 600)
                 .preferredColorScheme(.dark)
@@ -25,10 +33,10 @@ struct ColimaUIApp: App {
             MenuBarMenuView()
         } label: {
             Image("ColimaToolbarIcon")
-                .renderingMode(.original)
+                .renderingMode(.template)
                 .resizable()
                 .scaledToFit()
-                .frame(width: 19, height: 19)
+                .frame(width: 17, height: 17)
         }
     }
 }
@@ -39,6 +47,7 @@ struct MenuBarMenuView: View {
     @State private var isRefreshing = false
     @State private var domainSummary = "Domain checks pending"
     @State private var domainHealthy = false
+    @Environment(\.openWindow) private var openWindow
 
     @AppStorage("enableContainerDomains") private var enableContainerDomains: Bool = false
     @AppStorage("containerDomainSuffix") private var containerDomainSuffix: String = LocalDomainDefaults.suffix
@@ -82,7 +91,11 @@ struct MenuBarMenuView: View {
         Group {
             Button("Open ColimaUI") {
                 NSApp.activate(ignoringOtherApps: true)
-                NSApp.windows.first?.makeKeyAndOrderFront(nil)
+                if let window = NSApp.windows.first(where: { $0.isVisible }) {
+                    window.makeKeyAndOrderFront(nil)
+                } else {
+                    openWindow(id: "main")
+                }
             }
 
             Divider()

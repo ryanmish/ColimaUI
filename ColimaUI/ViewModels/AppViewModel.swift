@@ -27,7 +27,6 @@ class AppViewModel {
 
     init() {
         startRefreshLoop()
-        LocalDomainsAutopilot.shared.start()
     }
 
     /// Initial data load - runs all fetches in parallel
