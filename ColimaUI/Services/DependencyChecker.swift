@@ -64,9 +64,10 @@ class DependencyChecker {
 
     /// Check if a command exists in common paths
     private func checkCommandExists(_ command: String) async -> Bool {
+        let fileManager = FileManager.default
         for path in brewPaths {
             let fullPath = "\(path)/\(command)"
-            if (try? await shell.runCommand("/usr/bin/test", arguments: ["-x", fullPath])) != nil {
+            if fileManager.isExecutableFile(atPath: fullPath) {
                 return true
             }
         }
