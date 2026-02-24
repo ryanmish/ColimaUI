@@ -179,6 +179,7 @@ struct AnimatedProgressBar: View {
                 .scaleEffect(x: clampedValue, y: 1, anchor: .leading)
         }
         .frame(height: 4)
+        .accessibilityValue("\(Int(value))%")
     }
 }
 
@@ -191,6 +192,7 @@ struct PulsingDot: View {
         Circle()
             .fill(isActive ? color : Theme.statusStopped)
             .frame(width: 8, height: 8)
+            .accessibilityLabel(isActive ? "Running" : "Stopped")
     }
 }
 
@@ -243,14 +245,21 @@ struct TooltipModifier: ViewModifier {
     let text: String
     @State private var isHovered = false
     @State private var showTooltip = false
+    @State private var tooltipTask: Task<Void, Never>?
 
     func body(content: Content) -> some View {
         content
             .onHover { hovering in
                 isHovered = hovering
+                tooltipTask?.cancel()
                 if hovering {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        if isHovered {
+                    tooltipTask = Task {
+                        do {
+                            try await Task.sleep(for: .milliseconds(500))
+                        } catch {
+                            return
+                        }
+                        if isHovered && !Task.isCancelled {
                             withAnimation(.easeOut(duration: 0.15)) {
                                 showTooltip = true
                             }
@@ -261,6 +270,9 @@ struct TooltipModifier: ViewModifier {
                         showTooltip = false
                     }
                 }
+            }
+            .onDisappear {
+                tooltipTask?.cancel()
             }
             .overlay(alignment: .top) {
                 if showTooltip {

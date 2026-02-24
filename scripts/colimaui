@@ -97,9 +97,18 @@ EOF
 
 acquire_operation_lock() {
   local lock_path="${TMPDIR:-/tmp}/colimaui-domains.lock"
+  local pid_file="${lock_path}/pid"
   local attempts=0
 
   while ! mkdir "$lock_path" >/dev/null 2>&1; do
+    if [[ -f "$pid_file" ]]; then
+      local lock_pid
+      lock_pid="$(cat "$pid_file" 2>/dev/null || true)"
+      if [[ "$lock_pid" =~ ^[0-9]+$ ]] && ! kill -0 "$lock_pid" >/dev/null 2>&1; then
+        rm -rf "$lock_path" >/dev/null 2>&1 || true
+        continue
+      fi
+    fi
     attempts=$((attempts + 1))
     if (( attempts >= 80 )); then
       die "Another local-domain operation is running. Try again in a few seconds."
@@ -107,11 +116,13 @@ acquire_operation_lock() {
     sleep 0.25
   done
 
+  printf '%s\n' "$$" > "${lock_path}/pid" 2>/dev/null || true
   LOCK_DIR="$lock_path"
 }
 
 release_operation_lock() {
   if [[ -n "${LOCK_DIR:-}" ]]; then
+    rm -f "${LOCK_DIR}/pid" >/dev/null 2>&1 || true
     rmdir "$LOCK_DIR" >/dev/null 2>&1 || true
     LOCK_DIR=""
   fi
@@ -119,10 +130,10 @@ release_operation_lock() {
 
 with_operation_lock() {
   acquire_operation_lock
-  trap 'release_operation_lock' EXIT INT TERM
+  trap 'release_operation_lock' EXIT INT TERM HUP
   "$@"
   local exit_code=$?
-  trap - EXIT INT TERM
+  trap - EXIT INT TERM HUP
   release_operation_lock
   return $exit_code
 }
@@ -354,6 +365,7 @@ collect_container_domains() {
 sync_routes() {
   local suffix="$1"
   local dynamic_dir="$2"
+  local domains_file=""
   mkdir -p "$dynamic_dir"
   docker_reachable || return 0
   ensure_proxy_container "$dynamic_dir" "$CERT_DIR"
@@ -364,6 +376,10 @@ sync_routes() {
   services_file="$(mktemp)"
   route_keys_file="$(mktemp)"
   service_keys_file="$(mktemp)"
+  cleanup_sync_routes_tmp() {
+    rm -f "$routers_file" "$services_file" "$route_keys_file" "$service_keys_file" "${domains_file:-}"
+  }
+  trap cleanup_sync_routes_tmp RETURN
   local route_idx=0
 
   add_route() {
@@ -416,7 +432,6 @@ sync_routes() {
     service_name="s${short}p${port}"
     add_service "$service_name" "http://${ip}:${port}"
 
-    local domains_file
     domains_file="$(mktemp)"
     local full
     collect_container_domains "$name" "${labels:-}" "$suffix" "$domains_file"
@@ -434,6 +449,7 @@ sync_routes() {
     fi
 
     rm -f "$domains_file"
+    domains_file=""
   done < <(docker ps --format $'{{.ID}}\t{{.Names}}\t{{.Ports}}\t{{.Labels}}')
 
   {
@@ -460,13 +476,19 @@ sync_routes() {
     fi
   } > "${dynamic_dir}/routes.yml"
 
-  rm -f "$routers_file" "$services_file" "$route_keys_file" "$service_keys_file"
+  trap - RETURN
+  cleanup_sync_routes_tmp
 }
 
 list_urls() {
   local suffix="dev.local"
   local tmp
+  local domains_file=""
   tmp="$(mktemp)"
+  cleanup_list_urls_tmp() {
+    rm -f "$tmp" "${domains_file:-}"
+  }
+  trap cleanup_list_urls_tmp RETURN
 
   echo "https://index.${suffix}" >> "$tmp"
 
@@ -492,10 +514,12 @@ list_urls() {
     fi
 
     rm -f "$domains_file"
+    domains_file=""
   done < <(docker ps --format $'{{.ID}}\t{{.Names}}\t{{.Ports}}\t{{.Labels}}')
 
   sort -u "$tmp"
-  rm -f "$tmp"
+  trap - RETURN
+  cleanup_list_urls_tmp
 }
 
 list_urls_json() {
@@ -727,9 +751,6 @@ setup_finalize_domains() {
   local launchctl_snapshot=""
 
   caroot="${MKCERT_CAROOT}"
-
-  log "Preparing local CA..."
-  ensure_mkcert_ca "$caroot"
 
   log "Starting dnsmasq service..."
   brew services start dnsmasq >/dev/null 2>&1 || true

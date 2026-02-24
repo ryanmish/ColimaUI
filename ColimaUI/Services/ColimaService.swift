@@ -16,6 +16,10 @@ class ColimaService {
 
     private init() {}
 
+    private func colimaPath() async -> String {
+        await shell.resolveExecutable("colima")
+    }
+
     // MARK: - Computed Properties
 
     /// Currently selected VM
@@ -40,30 +44,24 @@ class ColimaService {
         isLoading = true
         error = nil
 
-        do {
-            // colima list --json outputs one JSON object per line
-            let output = try await shell.run("colima list --json 2>/dev/null || echo ''")
-            let lines = output.split(separator: "\n")
+        let output = (try? await shell.runCommand(await colimaPath(), arguments: ["list", "--json"])) ?? ""
+        let lines = output.split(separator: "\n")
 
-            var newVMs: [ColimaVM] = []
-            let decoder = JSONDecoder()
+        var newVMs: [ColimaVM] = []
+        let decoder = JSONDecoder()
 
-            for line in lines {
-                if let data = String(line).data(using: .utf8),
-                   let vm = try? decoder.decode(ColimaVM.self, from: data) {
-                    newVMs.append(vm)
-                }
+        for line in lines {
+            if let data = String(line).data(using: .utf8),
+               let vm = try? decoder.decode(ColimaVM.self, from: data) {
+                newVMs.append(vm)
             }
+        }
 
-            vms = newVMs
+        vms = newVMs
 
-            // If selected profile no longer exists, select first available or default
-            if !vms.contains(where: { $0.name == selectedProfile }) {
-                selectedProfile = vms.first?.name ?? "default"
-            }
-        } catch {
-            self.error = error.localizedDescription
-            vms = []
+        // If selected profile no longer exists, select first available or default
+        if !vms.contains(where: { $0.name == selectedProfile }) {
+            selectedProfile = vms.first?.name ?? "default"
         }
 
         isLoading = false
@@ -78,7 +76,7 @@ class ColimaService {
         ToastManager.shared.show("Starting \(selectedProfile)...", type: .info)
 
         do {
-            _ = try await shell.run("colima start --profile \(selectedProfile)")
+            _ = try await shell.runCommand(await colimaPath(), arguments: ["start", "--profile", selectedProfile])
             await refresh()
             ToastManager.shared.show("\(selectedProfile) started", type: .success)
         } catch {
@@ -96,7 +94,7 @@ class ColimaService {
         ToastManager.shared.show("Stopping \(selectedProfile)...", type: .info)
 
         do {
-            _ = try await shell.run("colima stop --profile \(selectedProfile)")
+            _ = try await shell.runCommand(await colimaPath(), arguments: ["stop", "--profile", selectedProfile])
             await refresh()
             ToastManager.shared.show("\(selectedProfile) stopped", type: .success)
         } catch {
@@ -114,7 +112,7 @@ class ColimaService {
         ToastManager.shared.show("Restarting \(selectedProfile)...", type: .info)
 
         do {
-            _ = try await shell.run("colima restart --profile \(selectedProfile)")
+            _ = try await shell.runCommand(await colimaPath(), arguments: ["restart", "--profile", selectedProfile])
             await refresh()
             ToastManager.shared.show("\(selectedProfile) restarted", type: .success)
         } catch {
@@ -128,13 +126,7 @@ class ColimaService {
     /// Open SSH session in Terminal for selected profile
     func ssh() async {
         do {
-            let script = """
-            tell application "Terminal"
-                activate
-                do script "colima ssh --profile \(selectedProfile)"
-            end tell
-            """
-            _ = try await shell.run("osascript -e '\(script)'")
+            try await shell.openInTerminal(await colimaPath(), arguments: ["ssh", "--profile", selectedProfile])
         } catch {
             self.error = error.localizedDescription
         }
@@ -148,7 +140,10 @@ class ColimaService {
         ToastManager.shared.show("Creating \(name)...", type: .info)
 
         do {
-            _ = try await shell.run("colima start --profile \(name) --cpu \(cpus) --memory \(memory) --disk \(disk)")
+            _ = try await shell.runCommand(
+                await colimaPath(),
+                arguments: ["start", "--profile", name, "--cpu", "\(cpus)", "--memory", "\(memory)", "--disk", "\(disk)"]
+            )
             await refresh()
             selectedProfile = name
             ToastManager.shared.show("\(name) created", type: .success)
@@ -178,7 +173,7 @@ class ColimaService {
         ToastManager.shared.show("Deleting \(name)...", type: .info)
 
         do {
-            _ = try await shell.run("colima delete --profile \(name) --force")
+            _ = try await shell.runCommand(await colimaPath(), arguments: ["delete", "--profile", name, "--force"])
 
             // If we deleted the selected profile, switch to another
             if selectedProfile == name {

@@ -46,7 +46,9 @@ class AppViewModel {
         refreshTask = Task {
             while !Task.isCancelled {
                 await refreshData()
-                try? await Task.sleep(for: .seconds(3))
+                let configuredInterval = UserDefaults.standard.double(forKey: "refreshInterval")
+                let interval = configuredInterval > 0 ? configuredInterval : 2.0
+                try? await Task.sleep(for: .seconds(interval))
             }
         }
     }

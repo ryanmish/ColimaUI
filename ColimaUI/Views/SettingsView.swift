@@ -250,7 +250,7 @@ struct SettingsView: View {
                         }
                     }
 
-                    Text("© 2025 Ryan Mish")
+                    Text("© 2026 Ryan Mish")
                         .font(.system(size: 10))
                         .foregroundColor(Theme.textMuted)
                 }
@@ -293,6 +293,9 @@ struct SettingsView: View {
                 setupStatusLabel = "Pending"
             }
         }
+        .onDisappear {
+            setupTask?.cancel()
+        }
     }
 
     private func normalizedDomainSuffix(_ value: String) -> String {
@@ -334,28 +337,22 @@ struct SettingsView: View {
         setupTask = Task {
             do {
                 let checks = try await LocalDomainService.shared.setupAndCheck(suffix: suffix)
-                await MainActor.run {
-                    if !Task.isCancelled {
-                        setupChecks = checks
-                        setupStatusLabel = checks.allSatisfy(\.isPassing) ? "Healthy" : "Needs attention"
-                    }
-                    isAutoSetupRunning = false
+                if !Task.isCancelled {
+                    setupChecks = checks
+                    setupStatusLabel = checks.allSatisfy(\.isPassing) ? "Healthy" : "Needs attention"
                 }
+                isAutoSetupRunning = false
             } catch is CancellationError {
-                await MainActor.run {
-                    isAutoSetupRunning = false
-                    setupStatusLabel = "Cancelled"
-                }
+                isAutoSetupRunning = false
+                setupStatusLabel = "Cancelled"
             } catch {
                 let checks = await LocalDomainService.shared.checkSetup(suffix: suffix)
-                await MainActor.run {
-                    if !Task.isCancelled {
-                        setupChecks = checks
-                        setupStatusLabel = "Needs attention"
-                    }
-                    isAutoSetupRunning = false
-                    ToastManager.shared.show("Auto setup failed: \(error.localizedDescription)", type: .error)
+                if !Task.isCancelled {
+                    setupChecks = checks
+                    setupStatusLabel = "Needs attention"
                 }
+                isAutoSetupRunning = false
+                ToastManager.shared.show("Auto setup failed: \(error.localizedDescription)", type: .error)
             }
         }
     }
@@ -368,13 +365,11 @@ struct SettingsView: View {
 
         setupTask = Task {
             let checks = await LocalDomainService.shared.checkSetup(suffix: suffix)
-            await MainActor.run {
-                if !Task.isCancelled {
-                    setupChecks = checks
-                    setupStatusLabel = checks.allSatisfy(\.isPassing) ? "Healthy" : "Needs attention"
-                }
-                isAutoSetupRunning = false
+            if !Task.isCancelled {
+                setupChecks = checks
+                setupStatusLabel = checks.allSatisfy(\.isPassing) ? "Healthy" : "Needs attention"
             }
+            isAutoSetupRunning = false
         }
     }
 
@@ -387,25 +382,19 @@ struct SettingsView: View {
         setupTask = Task {
             do {
                 let checks = try await LocalDomainService.shared.unsetup(suffix: suffix)
-                await MainActor.run {
-                    if !Task.isCancelled {
-                        setupChecks = checks
-                        setupStatusLabel = "Removed"
-                        ToastManager.shared.show("Local-domain setup removed for .\(suffix)", type: .success)
-                    }
-                    isAutoSetupRunning = false
+                if !Task.isCancelled {
+                    setupChecks = checks
+                    setupStatusLabel = "Removed"
+                    ToastManager.shared.show("Local-domain setup removed for .\(suffix)", type: .success)
                 }
+                isAutoSetupRunning = false
             } catch is CancellationError {
-                await MainActor.run {
-                    isAutoSetupRunning = false
-                    setupStatusLabel = "Cancelled"
-                }
+                isAutoSetupRunning = false
+                setupStatusLabel = "Cancelled"
             } catch {
-                await MainActor.run {
-                    isAutoSetupRunning = false
-                    setupStatusLabel = "Needs attention"
-                    ToastManager.shared.show("Unsetup failed: \(error.localizedDescription)", type: .error)
-                }
+                isAutoSetupRunning = false
+                setupStatusLabel = "Needs attention"
+                ToastManager.shared.show("Unsetup failed: \(error.localizedDescription)", type: .error)
             }
         }
     }
@@ -419,25 +408,19 @@ struct SettingsView: View {
         setupTask = Task {
             do {
                 let checks = try await LocalDomainService.shared.trustTLS(suffix: suffix)
-                await MainActor.run {
-                    if !Task.isCancelled {
-                        setupChecks = checks
-                        setupStatusLabel = checks.allSatisfy(\.isPassing) ? "Healthy" : "Needs attention"
-                        ToastManager.shared.show("TLS trust refreshed for .\(suffix)", type: .success)
-                    }
-                    isAutoSetupRunning = false
+                if !Task.isCancelled {
+                    setupChecks = checks
+                    setupStatusLabel = checks.allSatisfy(\.isPassing) ? "Healthy" : "Needs attention"
+                    ToastManager.shared.show("TLS trust refreshed for .\(suffix)", type: .success)
                 }
+                isAutoSetupRunning = false
             } catch is CancellationError {
-                await MainActor.run {
-                    isAutoSetupRunning = false
-                    setupStatusLabel = "Cancelled"
-                }
+                isAutoSetupRunning = false
+                setupStatusLabel = "Cancelled"
             } catch {
-                await MainActor.run {
-                    isAutoSetupRunning = false
-                    setupStatusLabel = "Needs attention"
-                    ToastManager.shared.show("TLS trust failed: \(error.localizedDescription)", type: .error)
-                }
+                isAutoSetupRunning = false
+                setupStatusLabel = "Needs attention"
+                ToastManager.shared.show("TLS trust failed: \(error.localizedDescription)", type: .error)
             }
         }
     }
@@ -478,7 +461,7 @@ struct SettingsView: View {
 
         ### Standard Workflow
         1. Start services from the project root: `docker compose up -d`
-        2. Sync and verify routing: `colimaui domains sync && colimaui domains check`
+        2. Wait for routes to sync: poll `colimaui domains urls --json` until your service appears, or force sync with `colimaui domains sync`
         3. List live URLs: `colimaui domains urls --json`
         4. Continue only when all checks are PASS (especially Reverse proxy + TLS trust).
         5. If TLS trust fails: `colimaui domains trust && colimaui domains check`

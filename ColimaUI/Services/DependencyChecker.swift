@@ -66,21 +66,11 @@ class DependencyChecker {
     private func checkCommandExists(_ command: String) async -> Bool {
         for path in brewPaths {
             let fullPath = "\(path)/\(command)"
-            if (try? await shell.run("test -x \(Self.shellEscape(fullPath))")) != nil {
+            if (try? await shell.runCommand("/usr/bin/test", arguments: ["-x", fullPath])) != nil {
                 return true
             }
         }
         return false
-    }
-
-    private func checkUserLocalCommandExists(_ command: String) async -> Bool {
-        let fullPath = "\(NSHomeDirectory())/.local/bin/\(command)"
-        do {
-            _ = try await shell.run("test -x '\(fullPath)'")
-            return true
-        } catch {
-            return false
-        }
     }
 
     /// Install Homebrew

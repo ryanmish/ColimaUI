@@ -89,6 +89,7 @@ struct ColimaUIApp: App {
                 .resizable()
                 .scaledToFit()
                 .frame(width: 21, height: 21)
+                .accessibilityLabel("ColimaUI")
         }
     }
 }
@@ -257,7 +258,7 @@ struct MenuBarMenuView: View {
 
     private func syncDomains() async {
         guard enableContainerDomains else { return }
-        await LocalDomainService.shared.syncProxyRoutes(suffix: normalizedSuffix, force: true)
+        await LocalDomainService.shared.syncProxyRoutes(suffix: normalizedSuffix)
         await refreshDomainStatus()
     }
 

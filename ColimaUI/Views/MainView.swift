@@ -3,7 +3,6 @@ import SwiftUI
 /// Main application view with sidebar navigation
 struct MainView: View {
     @State private var viewModel = AppViewModel()
-    @State private var columnVisibility = NavigationSplitViewVisibility.all
 
     var body: some View {
         NavigationSplitView(columnVisibility: .constant(.all)) {
@@ -21,6 +20,39 @@ struct MainView: View {
         .task {
             await viewModel.loadInitialData()
         }
+        .onDisappear {
+            viewModel.stopRefreshLoop()
+        }
+        .overlay(alignment: .top) {
+            if let activeError {
+                HStack(spacing: 10) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundColor(Theme.statusWarning)
+                    Text(activeError)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(Theme.textPrimary)
+                        .lineLimit(2)
+                    Spacer()
+                    Button("Dismiss") {
+                        viewModel.colima.error = nil
+                        viewModel.docker.error = nil
+                    }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(Theme.textSecondary)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 9)
+                .background(Color.orange.opacity(0.14))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.orange.opacity(0.35), lineWidth: 1)
+                )
+                .cornerRadius(8)
+                .padding(.horizontal, 20)
+                .padding(.top, 12)
+            }
+        }
         // Keyboard shortcuts
         .background {
             Button("Refresh") {
@@ -33,6 +65,10 @@ struct MainView: View {
             .keyboardShortcut("r", modifiers: .command)
             .hidden()
         }
+    }
+
+    private var activeError: String? {
+        viewModel.colima.error ?? viewModel.docker.error
     }
 
     @ViewBuilder

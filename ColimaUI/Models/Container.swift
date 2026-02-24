@@ -54,16 +54,7 @@ struct Container: Codable, Identifiable {
 
     /// Friendly group name based on compose project
     var groupName: String {
-        guard let project = composeProject else { return "Other" }
-
-        // Map known projects to friendly names
-        if project == "docker" {
-            return "Homeport"
-        } else if project.contains("manifold") || project.starts(with: "fm_") {
-            return "Manifold"
-        } else {
-            return project.capitalized
-        }
+        composeProject?.capitalized ?? "Other"
     }
 
     /// Short status for display

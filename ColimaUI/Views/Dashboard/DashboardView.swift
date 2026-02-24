@@ -6,6 +6,10 @@ struct DashboardView: View {
     @State private var isRefreshing = false
     @State private var showDeleteConfirmation = false
 
+    private var runningContainers: [Container] {
+        viewModel.docker.containers.filter(\.isRunning)
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
@@ -74,7 +78,7 @@ struct DashboardView: View {
                     .appearAnimation(delay: 0.2)
 
                 // Running Containers Preview
-                if !viewModel.docker.containers.filter({ $0.isRunning }).isEmpty {
+                if !runningContainers.isEmpty {
                     VStack(alignment: .leading, spacing: 16) {
                         HStack {
                             Image(systemName: "shippingbox")
@@ -91,7 +95,7 @@ struct DashboardView: View {
                         }
 
                         VStack(spacing: 8) {
-                            ForEach(Array(viewModel.docker.containers.filter { $0.isRunning }.prefix(5).enumerated()), id: \.element.id) { index, container in
+                            ForEach(Array(runningContainers.prefix(5))) { container in
                                 ContainerRowView(
                                     container: container,
                                     stats: viewModel.docker.stats[container.containerID],
@@ -101,7 +105,7 @@ struct DashboardView: View {
                             }
                         }
 
-                        if viewModel.docker.containers.filter({ $0.isRunning }).count > 5 {
+                        if runningContainers.count > 5 {
                             Divider()
                                 .background(Theme.cardBorder)
 

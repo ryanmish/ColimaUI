@@ -214,6 +214,10 @@ struct VMSidebarItem: View {
                 }
             }
         }
+        .onDisappear {
+            hoverTask?.cancel()
+            hoverTask = nil
+        }
         .contextMenu {
             Button {
                 onSelect()

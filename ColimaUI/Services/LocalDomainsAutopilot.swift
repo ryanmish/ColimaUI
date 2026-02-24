@@ -182,7 +182,12 @@ class LocalDomainsAutopilot {
         debounceTask?.cancel()
         debounceTask = Task { [weak self] in
             guard let self else { return }
-            try? await Task.sleep(for: .milliseconds(700))
+            do {
+                try await Task.sleep(for: .milliseconds(700))
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
             await self.reconcile(trigger: .dockerEvent)
         }
     }
@@ -192,7 +197,8 @@ class LocalDomainsAutopilot {
         let suffix = LocalDomainDefaults.suffix
 
         do {
-            _ = try await shell.run("docker info >/dev/null 2>&1")
+            let dockerPath = await shell.resolveExecutable("docker")
+            _ = try await shell.runCommand(dockerPath, arguments: ["info"])
         } catch {
             isHealthy = false
             status = "Needs attention"
@@ -203,7 +209,7 @@ class LocalDomainsAutopilot {
         status = "Reconciling"
         detail = "Updating routes for .\(suffix) (\(trigger.rawValue))."
 
-        await LocalDomainService.shared.syncProxyRoutes(suffix: suffix, force: true)
+        await LocalDomainService.shared.syncProxyRoutes(suffix: suffix)
         var checks = await LocalDomainService.shared.checkSetup(suffix: suffix)
 
         let needsRepair = checks.isEmpty || !checks.allSatisfy(\.isPassing)

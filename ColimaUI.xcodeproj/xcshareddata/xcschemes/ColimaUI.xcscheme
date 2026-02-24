@@ -91,7 +91,7 @@
       <CommandLineArguments>
          <CommandLineArgument
             argument = "-force-onboarding"
-            isEnabled = "YES">
+            isEnabled = "NO">
          </CommandLineArgument>
       </CommandLineArguments>
    </LaunchAction>

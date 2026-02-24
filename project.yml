@@ -54,7 +54,7 @@ schemes:
         ColimaUITests: [test]
     run:
       commandLineArguments:
-        -force-onboarding: true
+        -force-onboarding: false
     test:
       targets:
         - ColimaUITests

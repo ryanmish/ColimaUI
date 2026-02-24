@@ -6,7 +6,7 @@ final class LocalDomainDefaultsTests: XCTestCase {
         XCTAssertEqual(LocalDomainDefaults.suffix, "dev.local")
         XCTAssertEqual(LocalDomainDefaults.indexHost, "index.dev.local")
         XCTAssertEqual(LocalDomainDefaults.indexHTTPSURL, "https://index.dev.local")
-        XCTAssertEqual(LocalDomainDefaults.cliVersion, "1.1.13")
+        XCTAssertEqual(LocalDomainDefaults.cliVersion, "1.1.16")
     }
 
     func testNormalizeSuffixIgnoresInput() async {

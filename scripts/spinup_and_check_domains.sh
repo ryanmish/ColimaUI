@@ -69,6 +69,27 @@ resolve_project_name() {
   normalize_label "$(basename "$COMPOSE_DIR")"
 }
 
+wait_for_compose_running() {
+  local attempts=0
+  local max_attempts=60
+  local all_ids all_count running_count
+
+  while (( attempts < max_attempts )); do
+    all_ids="$(docker compose ps -aq 2>/dev/null || true)"
+    all_count="$(printf '%s\n' "$all_ids" | awk 'NF { c++ } END { print c + 0 }')"
+    running_count="$(docker compose ps --status running -q 2>/dev/null | awk 'NF { c++ } END { print c + 0 }')"
+
+    if (( all_count > 0 && running_count >= all_count )); then
+      return 0
+    fi
+
+    attempts=$((attempts + 1))
+    sleep 0.25
+  done
+
+  return 1
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --compose-dir)
@@ -117,6 +138,9 @@ cd "$COMPOSE_DIR"
 
 echo "== Starting compose project =="
 docker compose up -d
+if ! wait_for_compose_running; then
+  echo "Warning: compose services did not all reach running state before sync" >&2
+fi
 
 echo "== Syncing ColimaUI routes =="
 colimaui domains sync >/dev/null

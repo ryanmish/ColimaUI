@@ -20,12 +20,6 @@ struct DockerVolume: Codable, Identifiable {
         case size = "Size"
     }
 
-    /// Check if volume is in use by any container
-    var inUse: Bool {
-        // This would need to be set externally based on container mounts
-        false
-    }
-
     /// Format size for display
     var formattedSize: String {
         if size.isEmpty || size == "N/A" {

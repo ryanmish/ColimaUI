@@ -104,6 +104,21 @@ struct ContainerDetailView: View {
                         }
                         .padding(20)
                     }
+                } else {
+                    VStack(spacing: 10) {
+                        Spacer()
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 18))
+                            .foregroundColor(Theme.statusWarning)
+                        Text("Failed to load container details")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(Theme.textPrimary)
+                        Text("Try again from the container list.")
+                            .font(.caption)
+                            .foregroundColor(Theme.textMuted)
+                        Spacer()
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
         }
@@ -495,6 +510,7 @@ struct TabButton: View {
         }
         .buttonStyle(.plain)
         .onHover { isHovered = $0 }
+        .accessibilityAddTraits(selected == index ? [.isSelected] : [])
     }
 }
 

@@ -9,7 +9,6 @@ struct ContainerLogsView: View {
     @State private var isStreaming = false
     @State private var logProcess: Process?
     @State private var searchText = ""
-    @State private var tailLines = 200
     @Environment(\.dismiss) private var dismiss
 
     private var filteredLogs: String {

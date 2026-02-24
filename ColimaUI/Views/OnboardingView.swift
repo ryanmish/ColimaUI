@@ -24,10 +24,8 @@ struct OnboardingView: View {
                 Text("A native macOS app for managing Colima VMs and Docker containers")
                     .font(.body)
                     .foregroundColor(Theme.textMuted)
-                    .lineLimit(2)
                     .multilineTextAlignment(.center)
-                    .frame(maxWidth: 420)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: 520)
             }
             .padding(.bottom, 48)
 

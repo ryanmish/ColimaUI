@@ -129,8 +129,7 @@ actor LocalDomainService {
         }
     }
 
-    func syncProxyRoutes(suffix: String, force: Bool = false) async {
-        _ = force
+    func syncProxyRoutes(suffix: String) async {
         let normalized = normalizeSuffix(suffix)
         guard !normalized.isEmpty else { return }
         _ = try? await runRequiredCLIAction("sync", suffix: normalized)

@@ -257,19 +257,6 @@ struct AnimatedStatBadge: View {
     }
 }
 
-struct StatBadge: View {
-    let label: String
-    let value: String
-
-    var body: some View {
-        VStack(alignment: .trailing, spacing: 0) {
-            Text(value)
-                .font(.system(size: 12, weight: .medium, design: .monospaced))
-                .foregroundColor(Theme.textSecondary)
-        }
-    }
-}
-
 struct IconButton: View {
     let icon: String
     var isDestructive: Bool = false
@@ -291,6 +278,7 @@ struct IconButton: View {
         .if(tip != nil) { view in
             view.tooltip(tip!)
         }
+        .accessibilityLabel(tip ?? icon)
     }
 }
 
