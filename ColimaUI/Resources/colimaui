@@ -4,7 +4,7 @@ set -euo pipefail
 PATH="/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/local/sbin:$PATH"
 
 SCRIPT_NAME="colimaui"
-CLI_VERSION="1.1.13"
+CLI_VERSION="1.1.14"
 DNS_PORT="53535"
 MANAGED_DNSMASQ_CONFIG="colimaui.conf"
 MKCERT_CAROOT="${HOME}/Library/Application Support/ColimaUI/mkcert-v2"
@@ -258,9 +258,14 @@ preferred_http_port() {
 ensure_proxy_container() {
   local dynamic_dir="$1"
   local cert_dir="$2"
+  local force_restart="${3:-0}"
 
   docker_reachable || return 0
   mkdir -p "$dynamic_dir" "$cert_dir"
+
+  if [[ "$force_restart" == "1" ]]; then
+    docker rm -f colimaui-proxy >/dev/null 2>&1 || true
+  fi
 
   if ! docker ps --format '{{.Names}}' | grep -Fxq 'colimaui-proxy'; then
     docker rm -f colimaui-proxy >/dev/null 2>&1 || true
@@ -758,8 +763,8 @@ setup_finalize_domains() {
   write_tls_dynamic "$suffix" "$DYNAMIC_DIR"
 
   if docker_reachable; then
-    log "Ensuring reverse proxy and syncing routes..."
-    ensure_proxy_container "$DYNAMIC_DIR" "$CERT_DIR"
+    log "Refreshing reverse proxy and syncing routes..."
+    ensure_proxy_container "$DYNAMIC_DIR" "$CERT_DIR" "1"
     sync_routes "$suffix" "$DYNAMIC_DIR"
   else
     warn "Docker API unreachable; skipped proxy startup/sync"
